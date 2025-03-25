@@ -1,0 +1,64 @@
+pipeline {
+   agent any
+
+   environment {
+       DB_URL = credentials('DATABASE_URL')
+       DB_USERNAME = credentials('DATABASE_USERNAME')
+       DB_PASSWORD = credentials('DATABASE_PASSWORD')
+   }
+
+   stages {
+       stage('Create Config') {
+           steps {
+               dir('backend') {
+                   sh '''
+                       sed -i "s|\${DB_URL}|$DB_URL|g" src/main/resources/application.properties
+                       sed -i "s|\${DB_USERNAME}|$DB_USERNAME|g" src/main/resources/application.properties
+                       sed -i "s|\${DB_PASSWORD}|$DB_PASSWORD|g" src/main/resources/application.properties
+                       chmod 755 src/main/resources/application.properties
+                   '''
+               }
+           }
+       }
+
+       stage('Build') {
+           steps {
+               dir('backend') {
+                   sh '''
+                       chmod +x gradlew
+                       ./gradlew build -x test
+                   '''
+               }
+           }
+       }
+
+       stage('DockerSize') {
+           steps {
+               dir('backend') {
+                   sh '''
+                       docker stop smartcap-backend || true
+                       docker rm smartcap-backend || true
+                       docker rmi smartcap-backend || true
+                       docker build -t smartcap-backend .
+                   '''
+               }
+           }
+       }
+
+       stage('Deploy') {
+           steps {
+               sh '''
+                   docker network inspect smartcap-network >/dev/null 2>&1 || \
+                   docker network create smartcap-network
+
+                   docker run -d \
+                       --name smartcap-backend \
+                       --network smartcap-network \
+                       -p 8080:8080 \
+                       -v smartcap-backend-volume:/app/data \
+                       smartcap-backend
+               '''
+           }
+       }
+   }
+}
