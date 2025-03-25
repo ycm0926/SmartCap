@@ -1,0 +1,33 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Build') {
+            steps {
+                dir('smartcap-front') {
+                    sh '''
+                        docker stop smartcap-front || true
+                        docker rm smartcap-front || true
+                        docker rmi smartcap-front || true
+                        docker build -t smartcap-front .
+                    '''
+                }
+            }
+        }
+        stage('Deploy') {
+            steps {
+                sh '''
+                    docker network inspect smartcap-network >/dev/null 2>&1 || \
+                    docker network create smartcap-network
+
+                    docker run -d \
+                        --name smartcap-front \
+                        --network smartcap-network \
+                        -p 5173:5173 \
+                        -v /var/www/html:/app/dist \
+                        smartcap-front
+                '''
+            }
+        }
+    }
+}
