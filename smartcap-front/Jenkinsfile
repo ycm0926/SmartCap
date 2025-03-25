@@ -24,7 +24,6 @@ pipeline {
                         --name smartcap-front \
                         --network smartcap-network \
                         -p 5173:5173 \
-                        -v /var/www/html:/app/dist \
                         smartcap-front
                 '''
             }
