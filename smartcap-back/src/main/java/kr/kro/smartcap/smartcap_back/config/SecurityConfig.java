@@ -33,9 +33,14 @@ public class SecurityConfig {
                 )
                 // CSRF 보호 비활성화 (API 서버의 경우 필요에 따라)
                 .csrf(AbstractHttpConfigurer::disable)
-                // 폼 로그인과 HTTP Basic 인증 활성화 (기본적인 상태 기반 인증)
+                // 폼 로그인과 HTTP Basic 인증 활성화
                 .formLogin(Customizer.withDefaults())
                 .httpBasic(Customizer.withDefaults())
+                // Remember-Me 기능 추가
+                .rememberMe(rememberMe -> rememberMe
+                        .tokenValiditySeconds(30 * 24 * 60 * 60) // 30일 동안 로그인 유지
+                        .key("uniqueAndSecret") // 고유한 키 지정 (추후 환경변수로 보안 업그레이드 필요)
+                )
                 // 기본 session 기반 인증 사용(IF_REQUIRED는 필요 시 세션 생성)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
