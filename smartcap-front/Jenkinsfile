@@ -24,6 +24,7 @@ pipeline {
                         --name smartcap-front \
                         --network smartcap-network \
                         -p 5173:5173 \
+                        -p 8081:80 \
                         smartcap-front
                 '''
             }
