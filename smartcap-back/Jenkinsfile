@@ -4,7 +4,7 @@ pipeline {
     stages {
         stage('Build') {
             steps {
-                dir('backend') {
+                dir('smartcap-back') {
                     sh '''
                         chmod +x gradlew
                         ./gradlew build -x test
@@ -21,23 +21,28 @@ pipeline {
                     string(credentialsId: 'DATABASE_PASSWORD', variable: 'DB_PASSWORD')
                 ]) {
                     sh '''
-                        docker stop smartcap-backend || true
-                        docker rm smartcap-backend || true
-                        docker rmi smartcap-backend || true
-                        docker build -t smartcap-backend .
+                        # 기존 컨테이너가 있으면 정리
+                        docker stop smartcap-back || true
+                        docker rm smartcap-back || true
+                        docker rmi smartcap-back || true
 
+                        # Docker 이미지 빌드
+                        docker build -t smartcap-back .
+
+                        # Docker 네트워크가 없으면 생성
                         docker network inspect smartcap-network >/dev/null 2>&1 || \
                         docker network create smartcap-network
 
+                        # Docker 컨테이너 실행
                         docker run -d \
-                            --name smartcap-backend \
+                            --name smartcap-back \
                             --network smartcap-network \
                             -p 8080:8080 \
-                            -v smartcap-backend-volume:/app/data \
+                            -v smartcap-back-volume:/app/data \
                             -e DB_URL=$DB_URL \
                             -e DB_USERNAME=$DB_USERNAME \
                             -e DB_PASSWORD=$DB_PASSWORD \
-                            smartcap-backend
+                            smartcap-back
                     '''
                 }
             }
