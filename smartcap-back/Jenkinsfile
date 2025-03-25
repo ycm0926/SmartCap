@@ -1,6 +1,12 @@
 pipeline {
     agent any
 
+    environment {
+        DB_URL = "${env.DB_URL}"
+        DB_USERNAME = "${env.DB_USERNAME}"
+        DB_PASSWORD = "${env.DB_PASSWORD}"
+    }
+
     stages {
         stage('Build') {
             steps {
@@ -15,36 +21,25 @@ pipeline {
 
         stage('Docker Build & Deploy') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'DATABASE_URL', variable: 'DB_URL'),
-                    string(credentialsId: 'DATABASE_USERNAME', variable: 'DB_USERNAME'),
-                    string(credentialsId: 'DATABASE_PASSWORD', variable: 'DB_PASSWORD')
-                ]) {
-                    sh '''
-                        # 기존 컨테이너가 있으면 정리
-                        docker stop smartcap-back || true
-                        docker rm smartcap-back || true
-                        docker rmi smartcap-back || true
+                sh '''
+                    docker stop smartcap-back || true
+                    docker rm smartcap-back || true
+                    docker rmi smartcap-back || true
+                    docker build -t smartcap-back .
 
-                        # Docker 이미지 빌드
-                        docker build -t smartcap-back .
+                    docker network inspect smartcap-network >/dev/null 2>&1 || \
+                    docker network create smartcap-network
 
-                        # Docker 네트워크가 없으면 생성
-                        docker network inspect smartcap-network >/dev/null 2>&1 || \
-                        docker network create smartcap-network
-
-                        # Docker 컨테이너 실행
-                        docker run -d \
-                            --name smartcap-back \
-                            --network smartcap-network \
-                            -p 8080:8080 \
-                            -v smartcap-back-volume:/app/data \
-                            -e DB_URL=$DB_URL \
-                            -e DB_USERNAME=$DB_USERNAME \
-                            -e DB_PASSWORD=$DB_PASSWORD \
-                            smartcap-back
-                    '''
-                }
+                    docker run -d \
+                        --name smartcap-back \
+                        --network smartcap-network \
+                        -p 8080:8080 \
+                        -v smartcap-back-volume:/app/data \
+                        -e DB_URL=$DB_URL \
+                        -e DB_USERNAME=$DB_USERNAME \
+                        -e DB_PASSWORD=$DB_PASSWORD \
+                        smartcap-back
+                '''
             }
         }
     }
