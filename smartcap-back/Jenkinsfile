@@ -8,6 +8,16 @@ pipeline {
     }
 
     stages {
+        stage('Debug') {
+                steps {
+                    sh '''
+                        echo "DB_URL: $DB_URL"
+                        echo "DB_USERNAME: $DB_USERNAME"
+                    '''
+                }
+            }
+        }
+
         stage('Build') {
             steps {
                 dir('smartcap-back') {
