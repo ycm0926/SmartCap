@@ -1,3 +1,4 @@
+
 // src/pages/Dashboard.jsx
 import { useAuth } from '../store/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
@@ -31,3 +32,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
