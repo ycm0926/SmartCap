@@ -8,6 +8,12 @@ pipeline {
     }
 
     stages {
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
         stage('Build') {
             steps {
                 dir('smartcap-back') {
@@ -19,7 +25,7 @@ pipeline {
             }
         }
 
-        stage('Docker Build & Deploy') {
+        stage('Docker Build') {
             steps {
                 dir('smartcap-back') {
                     sh '''
@@ -27,7 +33,15 @@ pipeline {
                         docker rm smartcap-back || true
                         docker rmi smartcap-back || true
                         docker build -t smartcap-back .
+                    '''
+                }
+            }
+        }
 
+        stage('Deploy') {
+            steps {
+                dir('smartcap-back') {
+                    sh '''
                         docker network inspect smartcap-network >/dev/null 2>&1 || \
                         docker network create smartcap-network
 
