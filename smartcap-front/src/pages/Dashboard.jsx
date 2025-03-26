@@ -24,7 +24,7 @@ const Dashboard = () => {
       <main className="dashboard-content">
         <div className="welcome-message">
           <h2>환영합니다!</h2>
-          <p>스마트캡 대시보드에 성공적으로 로그인하셨습니다.</p>
+          <p>똑똑캡 대시보드에 성공적으로 로그인하셨습니다.</p>
         </div>
       </main>
     </div>

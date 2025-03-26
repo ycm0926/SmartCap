@@ -32,7 +32,14 @@ const Login = () => {
       // 대시보드로 이동
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message || '로그인에 실패했습니다. 아이디와 비밀번호를 확인해주세요.');
+      console.log('에러 메시지:', err.message); // 디버깅용
+      if (err.message.includes('Invalid password')) {
+        setError('아이디 또는 비밀번호가 올바르지 않습니다.');
+      } else if (err.message.includes(`User not found with loginId: ${loginId}`)) {
+        setError(`${loginId}` + '는 존재하지 않는 사용자입니다.');
+      } else {
+        setError('로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      }
     } finally {
       setIsLoading(false);
     }
