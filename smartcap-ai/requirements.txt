@@ -5,3 +5,10 @@ numpy
 python-multipart
 starlette
 websockets
+yarg==0.1.9
+torch
+numpy
+scipy
+lap
+ultralytics
+cython_bbox
