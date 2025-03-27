@@ -1,18 +1,22 @@
 import numpy as np
-from collections import deque
-import os
-import os.path as osp
-import copy
-import torch
-import torch.nn.functional as F
+import cv2
 
 from .kalman_filter import KalmanFilter
 from app.services.bytetrack import matching
 from .basetrack import BaseTrack, TrackState
-    
+from config import SPECIFIC_CLASSES
+
 class STrack(BaseTrack):
     shared_kalman = KalmanFilter()
-    def __init__(self, tlwh, score):
+
+    def __init__(self, tlwh, score, mask=None, class_id=None):
+        """
+        Parameter:
+        - tlwh: top-left width height 형식의 바운딩 박스 (x, y, w, h)
+        - score: 객체 신뢰도 점수
+        - mask: 세그멘테이션 마스크 좌표
+        - class_id: 특정 클래스의 경우 (건설 자재) 세그멘테이션 좌표 사용을 위한 클래스 ID
+        """
 
         # 활성화 대기 상태로 초기화
         self._tlwh = np.asarray(tlwh, dtype=np.float64)
@@ -23,14 +27,40 @@ class STrack(BaseTrack):
         self.score = score
         self.tracklet_len = 0
 
+        # 세그멘테이션 좌표로 
+        self._mask = mask
+        self._rotated_box = None
+        self.class_id = class_id
+
+        # 특정 클래스인 경우 마스크에서 회전된 바운딩 박스 계산
+        if mask is not None and (class_id is None or class_id in SPECIFIC_CLASSES):
+            # OpenCV의 minAreaRect를 사용하여 회전된 바운딩 박스 계산
+            # mask에서 객체의 윤곽선(contour)을 찾고, minAreaRect 적용
+            contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            # 윤곽선 발견 시 윤곽선을 외접하는 최소 직사각형을 만듦
+            if contours:
+                self._rotated_box = cv2.minAreaRect(contours[0])
+
+
     def predict(self):
+        """
+        칼만 필터를 사용하여 다음 프레임에서의 객체 위치를 예측합니다.
+        """
         mean_state = self.mean.copy()
+
+        # 현재 추적 중이 아닌 경우 속도 성분(mean_state[7])을 0으로 초기화화
         if self.state != TrackState.Tracked:
             mean_state[7] = 0
         self.mean, self.covariance = self.kalman_filter.predict(mean_state, self.covariance)
 
+
     @staticmethod
     def multi_predict(stracks):
+        """
+        칼만 필터를 사용하여 다음 프레임에서의 객체 위치를 예측합니다.
+        여러 트랙을 한 번에 예측하여 효율성을 높입니다.
+        """
         if len(stracks) > 0:
             multi_mean = np.asarray([st.mean.copy() for st in stracks])
             multi_covariance = np.asarray([st.covariance for st in stracks])
@@ -42,8 +72,12 @@ class STrack(BaseTrack):
                 stracks[i].mean = mean
                 stracks[i].covariance = cov
 
+
     def activate(self, kalman_filter, frame_id):
-        """새로운 트랙 시작"""
+        """
+        새로운 트랙을 시작합니다.
+        고유 ID를 할당하고, 바운딩 박스를 (center_x, center_y, aspect_ratio, height) 형식으로 변환해 칼만 필터를 초기화합니다.
+        """
         self.kalman_filter = kalman_filter
         self.track_id = self.next_id()
         self.mean, self.covariance = self.kalman_filter.initiate(self.tlwh_to_xyah(self._tlwh))
@@ -56,7 +90,12 @@ class STrack(BaseTrack):
         self.frame_id = frame_id
         self.start_frame = frame_id
 
+
     def re_activate(self, new_track, frame_id, new_id=False):
+        """
+        잃어버렸던 트랙을 다시 발견했을 때 실행합니다.
+        new_id가 True면 새로운 ID를 할당합니다.
+        """
         self.mean, self.covariance = self.kalman_filter.update(
             self.mean, self.covariance, self.tlwh_to_xyah(new_track.tlwh)
         )
@@ -67,6 +106,19 @@ class STrack(BaseTrack):
         if new_id:
             self.track_id = self.next_id()
         self.score = new_track.score
+
+        # 마스크와 회전된 바운딩 박스 업데이트
+        if hasattr(new_track, '_mask') and new_track._mask is not None:
+            self._mask = new_track._mask
+            
+            # 새 마스크에서 회전된 바운딩 박스 다시 계산
+            if self.class_id in SPECIFIC_CLASSES:
+                contours, _ = cv2.findContours(self._mask.astype(np.uint8), 
+                                            cv2.RETR_EXTERNAL, 
+                                            cv2.CHAIN_APPROX_SIMPLE)
+                if contours:
+                    self._rotated_box = cv2.minAreaRect(contours[0])
+
 
     def update(self, new_track, frame_id):
         """
@@ -89,8 +141,20 @@ class STrack(BaseTrack):
             self.mean, self.covariance, self.tlwh_to_xyah(new_tlwh))
         self.state = TrackState.Tracked
         self.is_activated = True
-
         self.score = new_track.score
+
+        # 마스크와 회전된 바운딩 박스 업데이트
+        if hasattr(new_track, '_mask') and new_track._mask is not None:
+            self._mask = new_track._mask
+            
+            # 새 마스크에서 회전된 바운딩 박스 다시 계산
+            if self.class_id in SPECIFIC_CLASSES:
+                contours, _ = cv2.findContours(self._mask.astype(np.uint8), 
+                                            cv2.RETR_EXTERNAL, 
+                                            cv2.CHAIN_APPROX_SIMPLE)
+                if contours:
+                    self._rotated_box = cv2.minAreaRect(contours[0])
+
 
     @property
     # @jit(nopython=True)
@@ -105,6 +169,7 @@ class STrack(BaseTrack):
         ret[:2] -= ret[2:] / 2
         return ret
 
+
     @property
     # @jit(nopython=True)
     def tlbr(self):
@@ -114,6 +179,7 @@ class STrack(BaseTrack):
         ret = self.tlwh.copy()
         ret[2:] += ret[:2]
         return ret
+
 
     @staticmethod
     # @jit(nopython=True)
@@ -129,8 +195,10 @@ class STrack(BaseTrack):
         ret[2] /= ret[3]
         return ret
 
+
     def to_xyah(self):
         return self.tlwh_to_xyah(self.tlwh)
+
 
     @staticmethod
     # @jit(nopython=True)
@@ -143,6 +211,7 @@ class STrack(BaseTrack):
         ret[2:] -= ret[:2]
         return ret
 
+
     @staticmethod
     # @jit(nopython=True)
     def tlwh_to_tlbr(tlwh):
@@ -153,6 +222,7 @@ class STrack(BaseTrack):
         ret = np.asarray(tlwh).copy()
         ret[2:] += ret[:2]
         return ret
+
 
     def __repr__(self):
         return 'OT_{}_({}-{})'.format(self.track_id, self.start_frame, self.end_frame)
@@ -167,14 +237,15 @@ class BYTETracker(object):
         self.frame_id = 0
         self.args = args
         #self.det_thresh = args.track_thresh
-        self.det_thresh = args.track_thresh + 0.1
-        self.buffer_size = int(frame_rate / 30.0 * args.track_buffer)
+        self.det_thresh = args.track_thresh + 0.1 # 새 트랙 생성 시 필요한 최소 신뢰도
+        self.buffer_size = int(frame_rate / 30.0 * args.track_buffer) # 트랙이 사라진 후 유지되는 최대 프레임 수
         self.max_time_lost = self.buffer_size
-        self.kalman_filter = KalmanFilter()
+        self.kalman_filter = KalmanFilter() # 위치 예측에 사용되는 칼만 필터
+
 
     def update(self, output_results, img_info, img_size):
         """
-        트래커 업데이트 (프레임 단위)
+        트래커 업데이트 (새 프레임이 입력될 때 마다 호출)
 
         Parameter:
             - output_results : np.ndarray
@@ -210,8 +281,8 @@ class BYTETracker(object):
         inds_high = scores < self.args.track_thresh
 
         inds_second = np.logical_and(inds_low, inds_high)
-        dets_second = bboxes[inds_second]
-        dets = bboxes[remain_inds]
+        dets_second = bboxes[inds_second] # 두 번째 매칭에서 사용할 낮은 객체 탐지 값 (0.1 ~ track_thresh)
+        dets = bboxes[remain_inds] # track_thresh 이상
         scores_keep = scores[remain_inds]
         scores_second = scores[inds_second]
 
@@ -223,7 +294,7 @@ class BYTETracker(object):
             detections = []
 
         # 2단계 : 추적 중인 트랙 분류
-        unconfirmed = []
+        unconfirmed = [] # 아직 활성화되지 않은 새 트랙
         tracked_stracks = []  # type: list[STrack]
         for track in self.tracked_stracks:
             if not track.is_activated:
@@ -243,14 +314,19 @@ class BYTETracker(object):
         for itracked, idet in matches:
             track = strack_pool[itracked]
             det = detections[idet]
+
+            # 현재 추적 중인 트랙인 경우 update 호출하여 칼만 필터 상태 업데이트
             if track.state == TrackState.Tracked:
                 track.update(detections[idet], self.frame_id)
                 activated_starcks.append(track)
+            
+            # 이전에 잃어버린 트랙인 경우 re_activate 호출하여 다시 활성화
             else:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
 
         # 4단계: 두 번째 매칭 (저득점 디텍션)
+        # 첫 번째 매칭에서 매칭되지 않은 트랙들을 저신뢰도 디텍션과 매칭 시도 (ByteTrack의 핵심 아이디어)
         if len(dets_second) > 0:
             '''Detections'''
             detections_second = [STrack(STrack.tlbr_to_tlwh(tlbr), s) for
@@ -270,6 +346,7 @@ class BYTETracker(object):
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
 
+        # 연속 프레임에서 매칭되지 않은 트랙의 상태를 Lost로 변경
         for it in u_track:
             track = r_tracked_stracks[it]
             if not track.state == TrackState.Lost:
@@ -278,10 +355,14 @@ class BYTETracker(object):
 
         # 5단계: 활성화되지 않은 트랙 처리
         detections = [detections[i] for i in u_detection]
+
+        # 아직 활성화되지 않은 트랙(unconfirmed)에 대해 매칭 시도
         dists = matching.iou_distance(unconfirmed, detections)
         if not self.args.mot20:
             dists = matching.fuse_score(dists, detections)
         matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=0.7)
+
+        # 매칭된 트랙 활성화
         for itracked, idet in matches:
             unconfirmed[itracked].update(detections[idet], self.frame_id)
             activated_starcks.append(unconfirmed[itracked])
@@ -297,6 +378,7 @@ class BYTETracker(object):
                 continue
             track.activate(self.kalman_filter, self.frame_id)
             activated_starcks.append(track)
+
         # 7단계: 오래된 트랙 제거
         for track in self.lost_stracks:
             if self.frame_id - track.end_frame > self.max_time_lost:
@@ -305,7 +387,7 @@ class BYTETracker(object):
 
         # print('Ramained match {} s'.format(t4-t3))
 
-        # 상태 업데이트
+        # 각 상태별 트랙 리스트 업데이트 (추적 중, 잃어버림, 제거)
         self.tracked_stracks = [t for t in self.tracked_stracks if t.state == TrackState.Tracked]
         self.tracked_stracks = joint_stracks(self.tracked_stracks, activated_starcks)
         self.tracked_stracks = joint_stracks(self.tracked_stracks, refind_stracks)

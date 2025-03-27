@@ -2,10 +2,15 @@ import cv2
 import numpy as np
 import scipy
 import lap
+import shapely.geometry as shg
+
 from scipy.spatial.distance import cdist
 
 from cython_bbox import bbox_overlaps as bbox_ious
 from app.services.bytetrack import kalman_filter
+from config import SPECIFIC_CLASSES
+from config import POSITION_WEIGHT
+from config import MAX_CENTER_DIST
     
 def merge_matches(m1, m2, shape):
     O,P,Q = shape
@@ -23,11 +28,21 @@ def merge_matches(m1, m2, shape):
 
     return match, unmatched_O, unmatched_Q
 
+
 def linear_assignment(cost_matrix, thresh):
+    """
+    헝가리안 알고리즘을 사용하여 비용 행렬을 기반으로 최적 매칭 계산
+    """
+
+    # 비용 행렬이 비어있는 경우 처리
     if cost_matrix.size == 0:
         return np.empty((0, 2), dtype=int), tuple(range(cost_matrix.shape[0])), tuple(range(cost_matrix.shape[1]))
+    
+    # 헝가리안 알고리즘 실행 (lap.lapjv 사용) thresh보다 큰 값의 매칭 제외
     matches, unmatched_a, unmatched_b = [], [], []
     cost, x, y = lap.lapjv(cost_matrix, extend_cost=True, cost_limit=thresh)
+
+    # 매칭 결과 처리
     for ix, mx in enumerate(x):
         if mx >= 0:
             matches.append([ix, mx])
@@ -39,11 +54,15 @@ def linear_assignment(cost_matrix, thresh):
 
 def ious(atlbrs, btlbrs):
     """
-    Compute cost based on IoU
-    :type atlbrs: list[tlbr] | np.ndarray
-    :type atlbrs: list[tlbr] | np.ndarray
+    바운딩 박스(AABB) 간의 IoU를 계산하는 함수입니다.
+    IoU (Intersection over Union): 여러 개의 바운딩 박스의 교집합을 합집합으로 나눈 값
 
-    :rtype ious np.ndarray
+    Parameter:
+    - type atlbrs: list[tlbr] | np.ndarray
+    - type btlbrs: list[tlbr] | np.ndarray
+    
+    Return:
+    - IoU 계산 값
     """
     ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float64)
     if ious.size == 0:
@@ -59,27 +78,59 @@ def ious(atlbrs, btlbrs):
 
 def iou_distance(atracks, btracks):
     """
-    Compute cost based on IoU
-    :type atracks: list[STrack]
-    :type btracks: list[STrack]
+    IoU를 기반으로 비용 행렬을 계산합니다.
+    특정 클래스의 경우 회전된 바운딩 박스 기반으로 IoU를 계산합니다.
 
-    :rtype cost_matrix np.ndarray
+    Parameter:
+    - type atracks: list[STrack]
+    - type btracks: list[STrack]
+
+    Return:
+    - rtype cost_matrix np.ndarray
     """
 
     if (len(atracks)>0 and isinstance(atracks[0], np.ndarray)) or (len(btracks) > 0 and isinstance(btracks[0], np.ndarray)):
         atlbrs = atracks
         btlbrs = btracks
+        _ious = ious(atlbrs, btlbrs)
     else:
-        atlbrs = [track.tlbr for track in atracks]
-        btlbrs = [track.tlbr for track in btracks]
-    _ious = ious(atlbrs, btlbrs)
+        # 트랙 객체인 경우 (확장 로직)
+        _ious = np.zeros((len(atracks), len(btracks)), dtype=np.float64)
+
+        for i, atrack in enumerate(atracks):
+            for j, btrack in enumerate(btracks):
+                # 특정 클래스에 대해 회전된 바운딩 박스 사용
+                if (hasattr(atrack, 'class_id') and hasattr(btrack, 'class_id') and
+                    atrack.class_id in SPECIFIC_CLASSES and btrack.class_id in SPECIFIC_CLASSES and
+                    hasattr(atrack, '_rotated_box') and hasattr(btrack, '_rotated_box') and
+                    atrack._rotated_box is not None and btrack._rotated_box is not None):
+
+                    # OBB IoU 계산
+                    iou_val = rotated_iou(atrack._rotated_box, btrack._rotated_box)
+
+                    # 중심점 거리 계산
+                    center_a = atrack._rotated_box[0]
+                    center_b = btrack._rotated_box[0]
+                    dist = np.sqrt(np.sum((np.array(center_a) - np.array(center_b))**2))
+
+                    # 정규화된 거리
+                    norm_dist = min(1.0, dist / MAX_CENTER_DIST)
+                    
+                    # 융합: IoU와 거리를 가중합
+                    _ious[i, j] = (1 - POSITION_WEIGHT) * iou_val + POSITION_WEIGHT * (1 - norm_dist)
+                
+                else:
+                    # 기존 AABB 바운딩 박스 IoU 계산
+                    _ious[i, j] = ious([atrack.tlbr], [btrack.tlbr])[0, 0]
+
     cost_matrix = 1 - _ious
 
     return cost_matrix
 
+
 def v_iou_distance(atracks, btracks):
     """
-    IoU를 기반으로 비용 행렬을 계산
+    예측된 바운딩 박스(pred_bbox)를 사용한 IoU 거리 계산
     
     Parameter:
         - atracks: list[STrack]
@@ -102,6 +153,7 @@ def v_iou_distance(atracks, btracks):
     cost_matrix = 1 - _ious
 
     return cost_matrix
+
 
 def embedding_distance(tracks, detections, metric='cosine'):
     """
@@ -233,7 +285,8 @@ def fuse_iou(cost_matrix, tracks, detections):
 
 def fuse_score(cost_matrix, detections):
     """
-    디텍션 신뢰도(score)와 IoU 유사도를 결합하여 비용 행렬 생성
+    디텍션 신뢰도(score)와 IoU 유사도를 결합하여 비용 행렬 생성합니다.
+    고신뢰도 객체에 더 높은 우선순위를 부여합니다.
 
     Parameter:
         - cost_matrix : np.ndarray
@@ -247,9 +300,77 @@ def fuse_score(cost_matrix, detections):
     """
     if cost_matrix.size == 0:
         return cost_matrix
-    iou_sim = 1 - cost_matrix
-    det_scores = np.array([det.score for det in detections])
+    iou_sim = 1 - cost_matrix # IoU 유사도
+    det_scores = np.array([det.score for det in detections]) # 디텍션 점수
     det_scores = np.expand_dims(det_scores, axis=0).repeat(cost_matrix.shape[0], axis=0)
     fuse_sim = iou_sim * det_scores
     fuse_cost = 1 - fuse_sim
     return fuse_cost
+
+
+def cv_box_to_shapely(box):
+    """
+    minAreaRect형태의 회전된 바운딩 박스를 Shapely Polygon으로 변환합니다.
+    """
+    # OpenCV의 boxPoints 함수로 회전된 박스의 4개 꼭지점 추출
+    points = cv2.boxPoints(box)
+    return shg.Polygon(points)
+
+
+def rotated_iou(box1, box2):
+    """
+    회전된 바운딩 박스 간의 IoU 계산
+    
+    Parameters:
+        - box1, box2: OpenCV minAreaRect 형태의 회전된 바운딩 박스
+            ((cx, cy), (w, h), angle)
+    
+    Returns:
+        - float: IoU 값 (0~1)
+    """
+    
+    # 두 박스를 Shapely Polygon으로 변환
+    poly1 = cv_box_to_shapely(box1)
+    poly2 = cv_box_to_shapely(box2)
+    
+    # 교집합과 합집합 면적 계산
+    if not poly1.is_valid or not poly2.is_valid:
+        return 0.0
+        
+    # 교집합이 없으면 IoU = 0
+    if not poly1.intersects(poly2):
+        return 0.0
+        
+    inter_area = poly1.intersection(poly2).area
+    union_area = poly1.area + poly2.area - inter_area
+    
+    # 분모가 0이면 IoU = 0
+    if union_area <= 0:
+        return 0.0
+        
+    return inter_area / union_area
+
+
+def mask_iou(mask1, mask2):
+    """
+    두 세그멘테이션 마스크 간의 IoU 계산
+    
+    Parameters:
+        - mask1, mask2: 이진 마스크 (np.ndarray, 0 또는 1 값)
+    
+    Returns:
+        - float: IoU 값 (0~1)
+    """
+    # 두 마스크가 모두 0인 경우 처리
+    if np.sum(mask1) == 0 or np.sum(mask2) == 0:
+        return 0.0
+        
+    # 교집합과 합집합 계산
+    intersection = np.logical_and(mask1, mask2).sum()
+    union = np.logical_or(mask1, mask2).sum()
+    
+    # 분모가 0이면 IoU = 0
+    if union == 0:
+        return 0.0
+        
+    return intersection / union
