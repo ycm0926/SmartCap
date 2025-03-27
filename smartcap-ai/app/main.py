@@ -1,5 +1,7 @@
 from fastapi import FastAPI, WebSocket
 from app.api.websocket import websocket_endpoint
+from app.core.logging_config import setup_logging
+
 
 app = FastAPI(
     title="FastAPI SmartCap Server",
