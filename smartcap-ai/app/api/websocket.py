@@ -6,6 +6,8 @@ import asyncio
 import logging
 import os
 from collections import deque
+from dotenv import load_dotenv
+import redis  # Redis 클라이언트 임포트
 
 from fastapi import WebSocket
 from starlette.websockets import WebSocketState
@@ -16,6 +18,16 @@ from app.core.save_video import create_video_from_images
 
 # 로깅 설정: 콘솔과 파일에 로그가 찍히도록 force=True 옵션 사용
 setup_logging()
+
+# .env 파일의 환경 변수 로드
+load_dotenv()
+
+redis_host = os.getenv("REDIS_HOST")
+redis_port = int(os.getenv("REDIS_PORT"))
+redis_db   = int(os.getenv("REDIS_DB"))
+
+# Redis 클라이언트 초기화
+redis_client = redis.Redis(host=redis_host, port=redis_port, db=redis_db)
 
 # 전역 상태 관리
 clients = {}          # device_id: WebSocket 객체 저장
@@ -41,20 +53,18 @@ def run_model(frame):
 
 def save_gps_data(device_id: str, gps_data: str):
     """
-    GPS 데이터를 로컬 파일에 저장합니다.
-    각 device_id별로 'gps_logs' 폴더 내의 텍스트 파일에 기록합니다.
+    GPS 데이터를 Redis에 저장합니다.
+    모든 gps 데이터는 무조건 lat: 37.502, lng: 127.04로 저장되며,
+    동일한 device_id가 저장되면 해당 key의 value가 변경됩니다.
+    Redis의 hash 자료형을 사용하여, 나중에 꺼내쓰기 좋도록 float형으로 저장합니다.
     
     Args:
-        device_id (str): GPS 디바이스 ID (여기서는 "2")
-        gps_data (str): 수신한 GPS 데이터 문자열
+        device_id (str): GPS 디바이스 ID (예: "2")
+        gps_data (str): 수신한 GPS 데이터 문자열 (실제 값은 무시됨)
     """
-    folder = "gps_logs"
-    if not os.path.exists(folder):
-        os.makedirs(folder)
-    file_path = os.path.join(folder, f"{device_id}.txt")
-    with open(file_path, "a", encoding="utf-8") as f:
-        f.write(gps_data + "\n")
-    logging.info(f"[Device {device_id}] GPS data saved to {file_path}")
+    # 고정된 GPS 값 저장
+    redis_client.hset(device_id, mapping={"lat": 37.502, "lng": 127.04})
+    logging.info(f"[Device {device_id}] GPS data saved to Redis with key {device_id}")
 
 async def process_video_frames(device_id: str):
     """
@@ -100,7 +110,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
     [GPS 디바이스 ("2")]:
       - 텍스트 형태의 GPS 데이터를 수신합니다.
       - 수신 시마다 "Received data" 로그를 찍고, 텍스트에 "$GPGGA" 또는 "$GPRMC"가 포함되면
-        파일에 저장합니다.
+        Redis에 device_id를 key로, 고정된 gps값을 저장합니다.
     
     Args:
         websocket (WebSocket): 클라이언트 WebSocket 객체
@@ -191,6 +201,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                     # GPS NMEA 데이터 감지
                     if "$GPGGA" in text_data or "$GPRMC" in text_data:
                         logging.info(f"[Device {device_id}] GPS data detected: {text_data.strip()}")
+                        # gps_data 값은 실제 텍스트는 무시하고, 고정값을 Redis에 저장
                         save_gps_data(device_id, text_data.strip())
                         now = asyncio.get_event_loop().time()
                         if now - last_trigger_time >= 5:
