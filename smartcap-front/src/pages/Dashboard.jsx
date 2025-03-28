@@ -34,12 +34,12 @@ const Dashboard = () => {
       {/* 🔹 본문 */}
       <main className="p-6">
         {/* 환영 메시지 박스 */}
-        <div className="bg-[rgba(20,25,30,0.8)] rounded-lg p-6 mb-6 max-w-3xl mx-auto text-center shadow-xl">
+        {/* <div className="bg-[rgba(20,25,30,0.8)] rounded-lg p-6 mb-6 max-w-3xl mx-auto text-center shadow-xl">
           <h2 className="text-2xl mb-2 text-[#0084ff]">환영합니다!</h2>
           <p className="text-base text-white/80">
             똑똑캡 대시보드에 성공적으로 로그인하셨습니다.
           </p>
-        </div>
+        </div> */}
 
         {/* 대시보드 위젯 그리드 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

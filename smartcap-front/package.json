@@ -10,10 +10,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-google-maps/api": "^2.20.6",
     "date-fns": "^4.1.0",
+    "dayjs": "^1.11.13",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.484.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.4.0",
     "recharts": "^2.15.1",
     "socket.io-client": "^4.8.1",

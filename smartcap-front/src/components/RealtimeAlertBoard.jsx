@@ -1,17 +1,22 @@
-// 2️⃣ 실시간 알람 보드
-import React, { useState } from 'react';
+import React from "react";
+import { useAlarmStore } from "../store/alarmStore";
 
 export const RealtimeAlertBoard = () => {
-  const [alerts, setAlerts] = useState([
-    { id: 1, msg: 'Helmet A 낙상 감지', time: '14:32', type: 'Warning' },
-    { id: 2, msg: 'Helmet B 배터리 부족', time: '14:30', type: 'Danger' },
-  ]);
+  const alarms = useAlarmStore((state) => state.alarms);
 
-  const typeColor = {
-    Warning: 'bg-yellow-500',
-    Danger: 'bg-pink-600',
-    Emergency: 'bg-red-600',
-  };
+  // 최신순 정렬 후 상위 5개만 표시
+  const latestAlerts = [...alarms]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5);
+
+    const typeColor = {
+      "경고": "bg-yellow-500",
+      "위험": "bg-pink-600",
+      "사고": "bg-red-600",
+    };
+    
+    const color = typeColor[alert.alarm_type] || "bg-gray-500";
+    
 
   return (
     <div className="bg-[#0d1117] text-white rounded-xl shadow-lg p-4">
@@ -19,6 +24,7 @@ export const RealtimeAlertBoard = () => {
         <h2 className="text-xl font-semibold">실시간 위험 로그</h2>
         <span className="text-sm text-gray-400">Now</span>
       </div>
+
       <table className="w-full text-base">
         <thead className="text-gray-400 border-b border-gray-800">
           <tr>
@@ -29,23 +35,38 @@ export const RealtimeAlertBoard = () => {
           </tr>
         </thead>
         <tbody>
-          {alerts.map((alert, idx) => (
-            <tr key={alert.id} className="border-b border-gray-800">
+          {latestAlerts.map((alert, idx) => (
+            <tr key={alert.alarm_id} className="border-b border-gray-800">
               <td className="py-2">{idx + 1}</td>
-              <td className="py-2">{alert.msg}</td>
-              <td className="py-2">{alert.time}</td>
+              <td className="py-2">
+                {alert.recognized_type} {alert.alarm_type} 감지
+              </td>
+              <td className="py-2">
+                {new Date(alert.created_at).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </td>
               <td className="py-2">
                 <span
-                  className={`px-2 py-1 rounded text-sm font-bold text-black ${typeColor[alert.type]}`}
+                  className={`px-2 py-1 rounded text-sm font-bold text-black ${
+                    typeColor[alert.alarm_type] || "bg-gray-500"
+                  }`}
                 >
-                  {alert.type}
+                  {alert.alarm_type}
                 </span>
               </td>
             </tr>
           ))}
+          {latestAlerts.length === 0 && (
+            <tr>
+              <td colSpan={4} className="py-4 text-center text-gray-500">
+                알람이 없습니다.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
   );
 };
-
