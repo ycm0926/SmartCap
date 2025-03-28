@@ -2,15 +2,14 @@ import cv2
 import numpy as np
 import scipy
 import lap
-import shapely.geometry as shg
 
 from scipy.spatial.distance import cdist
 
 from cython_bbox import bbox_overlaps as bbox_ious
 from app.services.bytetrack import kalman_filter
-from config import SPECIFIC_CLASSES
-from config import POSITION_WEIGHT
-from config import MAX_CENTER_DIST
+from app.config import SPECIFIC_CLASSES
+from app.config import POSITION_WEIGHT
+from app.config import MAX_CENTER_DIST
     
 def merge_matches(m1, m2, shape):
     O,P,Q = shape
@@ -155,34 +154,6 @@ def v_iou_distance(atracks, btracks):
     return cost_matrix
 
 
-def embedding_distance(tracks, detections, metric='cosine'):
-    """
-    특징 임베딩(embedding)을 기반으로 트랙과 디텍션 간의 비용 행렬을 계산
-    
-    Parameter:
-        - tracks : list[STrack]
-            비교할 기준이 되는 트랙 리스트
-        - detections : list[BaseTrack]
-            현재 프레임에서 감지된 객체 리스트
-        - metric : str
-             거리 계산에 사용할 거리 함수 (예: 'cosine', 'euclidean' 등)
-    
-    Return:
-        - cost_matrix : np.ndarray
-            트랙과 디텍션 간의 임베딩 거리로 계산된 비용 행렬
-    """
-
-    cost_matrix = np.zeros((len(tracks), len(detections)), dtype=np.float64)
-    if cost_matrix.size == 0:
-        return cost_matrix
-    det_features = np.asarray([track.curr_feat for track in detections], dtype=np.float64)
-    #for i, track in enumerate(tracks):
-        #cost_matrix[i, :] = np.maximum(0.0, cdist(track.smooth_feat.reshape(1,-1), det_features, metric))
-    track_features = np.asarray([track.smooth_feat for track in tracks], dtype=np.float64)
-    cost_matrix = np.maximum(0.0, cdist(track_features, det_features, metric))  # Nomalized features
-    return cost_matrix
-
-
 def gate_cost_matrix(kf, cost_matrix, tracks, detections, only_position=False):
     """
     칼만 필터 기반 게이팅 거리 계산을 통해 비용 행렬을 필터링
@@ -209,6 +180,7 @@ def gate_cost_matrix(kf, cost_matrix, tracks, detections, only_position=False):
     gating_dim = 2 if only_position else 4
     gating_threshold = kalman_filter.chi2inv95[gating_dim]
     measurements = np.asarray([det.to_xyah() for det in detections])
+
     for row, track in enumerate(tracks):
         gating_distance = kf.gating_distance(
             track.mean, track.covariance, measurements, only_position)
@@ -244,43 +216,16 @@ def fuse_motion(kf, cost_matrix, tracks, detections, only_position=False, lambda
         return cost_matrix
     gating_dim = 2 if only_position else 4
     gating_threshold = kalman_filter.chi2inv95[gating_dim]
+
     measurements = np.asarray([det.to_xyah() for det in detections])
+
     for row, track in enumerate(tracks):
         gating_distance = kf.gating_distance(
             track.mean, track.covariance, measurements, only_position, metric='maha')
         cost_matrix[row, gating_distance > gating_threshold] = np.inf
         cost_matrix[row] = lambda_ * cost_matrix[row] + (1 - lambda_) * gating_distance
+
     return cost_matrix
-
-
-def fuse_iou(cost_matrix, tracks, detections):
-    """
-    IoU 유사도와 appearance 기반 유사도를 결합하여 최종 비용 행렬 생성
-
-    Parameter:
-        - cost_matrix : np.ndarray
-            기존 appearance 기반 비용 행렬
-        - tracks : list[STrack]
-            기존 추적 중인 트랙 리스트
-        - detections : list[BaseTrack]
-            현재 프레임에서 감지된 객체 리스트
-
-    Return:
-        - fuse_cost : np.ndarray
-            IoU와 appearance 정보를 융합하여 계산된 비용 행렬
-    """
-
-    if cost_matrix.size == 0:
-        return cost_matrix
-    reid_sim = 1 - cost_matrix
-    iou_dist = iou_distance(tracks, detections)
-    iou_sim = 1 - iou_dist
-    fuse_sim = reid_sim * (1 + iou_sim) / 2
-    det_scores = np.array([det.score for det in detections])
-    det_scores = np.expand_dims(det_scores, axis=0).repeat(cost_matrix.shape[0], axis=0)
-    #fuse_sim = fuse_sim * (1 + det_scores) / 2
-    fuse_cost = 1 - fuse_sim
-    return fuse_cost
 
 
 def fuse_score(cost_matrix, detections):
@@ -308,18 +253,9 @@ def fuse_score(cost_matrix, detections):
     return fuse_cost
 
 
-def cv_box_to_shapely(box):
-    """
-    minAreaRect형태의 회전된 바운딩 박스를 Shapely Polygon으로 변환합니다.
-    """
-    # OpenCV의 boxPoints 함수로 회전된 박스의 4개 꼭지점 추출
-    points = cv2.boxPoints(box)
-    return shg.Polygon(points)
-
-
 def rotated_iou(box1, box2):
     """
-    회전된 바운딩 박스 간의 IoU 계산
+    회전된 바운딩 박스 간의 IoU 계산 (Shapely가 아닌 OpenCV를 활용하여 최적화)
     
     Parameters:
         - box1, box2: OpenCV minAreaRect 형태의 회전된 바운딩 박스
@@ -328,27 +264,28 @@ def rotated_iou(box1, box2):
     Returns:
         - float: IoU 값 (0~1)
     """
-    
-    # 두 박스를 Shapely Polygon으로 변환
-    poly1 = cv_box_to_shapely(box1)
-    poly2 = cv_box_to_shapely(box2)
-    
-    # 교집합과 합집합 면적 계산
-    if not poly1.is_valid or not poly2.is_valid:
-        return 0.0
-        
+
+    # 회전된 사각형 간의 교집합 계산
+    retval, intersection_points = cv2.rotatedRectangleIntersection(box1, box2)
+
     # 교집합이 없으면 IoU = 0
-    if not poly1.intersects(poly2):
+    if retval == cv2.INTERSECT_NONE:
         return 0.0
-        
-    inter_area = poly1.intersection(poly2).area
-    union_area = poly1.area + poly2.area - inter_area
     
-    # 분모가 0이면 IoU = 0
+    # 교집합 면적 계산
+    intersection_area = cv2.contourArea(intersection_points)
+    
+    # 각 사각형 면적 계산
+    area1 = box1[1][0] * box1[1][1]
+    area2 = box2[1][0] * box2[1][1]
+    
+    # 합집합 면적 계산
+    union_area = area1 + area2 - intersection_area
     if union_area <= 0:
         return 0.0
-        
-    return inter_area / union_area
+    
+    # IoU값 계산
+    return intersection_area / union_area
 
 
 def mask_iou(mask1, mask2):

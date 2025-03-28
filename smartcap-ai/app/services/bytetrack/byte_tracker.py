@@ -4,7 +4,7 @@ import cv2
 from .kalman_filter import KalmanFilter
 from app.services.bytetrack import matching
 from .basetrack import BaseTrack, TrackState
-from config import SPECIFIC_CLASSES
+from app.config import SPECIFIC_CLASSES
 
 class STrack(BaseTrack):
     shared_kalman = KalmanFilter()
@@ -27,7 +27,7 @@ class STrack(BaseTrack):
         self.score = score
         self.tracklet_len = 0
 
-        # 세그멘테이션 좌표로 
+        # 세그멘테이션 좌표로 객체 추적시 사용
         self._mask = mask
         self._rotated_box = None
         self.class_id = class_id
@@ -243,7 +243,7 @@ class BYTETracker(object):
         self.kalman_filter = KalmanFilter() # 위치 예측에 사용되는 칼만 필터
 
 
-    def update(self, output_results, img_info, img_size):
+    def update(self, output_results, img_info, img_size, masks=None, class_ids=None):
         """
         트래커 업데이트 (새 프레임이 입력될 때 마다 호출)
 
@@ -254,6 +254,10 @@ class BYTETracker(object):
                 원본 이미지 크기 (높이, 너비)
             - img_size : tuple
                 입력 크기 (높이, 너비)
+            - masks : list
+                세그멘테이션 마스크 리스트 (옵션)
+            - class_ids : list
+                클래스 ID 리스트 (옵션)
 
         Return:
             - output_stracks : list[STrack]
@@ -272,6 +276,7 @@ class BYTETracker(object):
             output_results = output_results.cpu().numpy()
             scores = output_results[:, 4] * output_results[:, 5]
             bboxes = output_results[:, :4]  # x1y1x2y2
+
         img_h, img_w = img_info[0], img_info[1]
         scale = min(img_size[0] / float(img_h), img_size[1] / float(img_w))
         bboxes /= scale
@@ -286,12 +291,43 @@ class BYTETracker(object):
         scores_keep = scores[remain_inds]
         scores_second = scores[inds_second]
 
-        # 1단계 : 디텍션 생성
+
+        # 디텍션을 신뢰도에 따라 분류하면서 마스크와 신뢰도 ID 매칭
+        if masks is not None and class_ids is not None:
+            # 높은 신뢰도(track_thresh 이상) 디텍션에 대한 마스크와 클래스 ID 추출
+            # np.where(remain_inds)[0]로 조건을 만족하는 인덱스 배열 얻음
+            masks_high = [masks[i] for i in np.where(remain_inds)[0] if i < len(masks)]
+            class_ids_high = [class_ids[i] for i in np.where(remain_inds)[0] if i < len(class_ids)]
+            
+            # 낮은 신뢰도(0.1 ~ track_thresh) 디텍션에 대한 마스크와 클래스 ID 추출
+            # inds_second는 0.1 < 점수 < track_thresh 조건을 만족하는 논리 배열
+            masks_second = [masks[i] for i in np.where(inds_second)[0] if i < len(masks)]
+            class_ids_second = [class_ids[i] for i in np.where(inds_second)[0] if i < len(class_ids)]
+        else:
+            masks_high = None
+            class_ids_high = None
+            masks_second = None
+            class_ids_second = None
+
+
+        # 1단계 : 고신뢰도 디텍션으로 STrack 객체 생성
         if len(dets) > 0:
-            detections = [STrack(STrack.tlbr_to_tlwh(tlbr), s) for
-                          (tlbr, s) in zip(dets, scores_keep)]
+            if masks_high is not None and class_ids_high is not None:
+                # 마스크와 클래스 ID가 있는 경우만 디텍션에 포함
+                detections = []
+                for i, (tlbr, s) in enumerate(zip(dets, scores_keep)):
+                    # 인덱스 범위 검사로 안전하게 마스크와 클래스 ID 접근
+                    mask = masks_high[i] if i < len(masks_high) else None
+                    cls_id = class_ids_high[i] if i < len(class_ids_high) else None
+
+                    detections.append(STrack(STrack.tlbr_to_tlwh(tlbr), s, mask=mask, class_id=cls_id))
+            else:
+                # 마스크나 클래스 ID가 없는 경우, 기본 STrack 객체만 생성
+                detections = [STrack(STrack.tlbr_to_tlwh(tlbr), s) for
+                            (tlbr, s) in zip(dets, scores_keep)]
         else:
             detections = []
+
 
         # 2단계 : 추적 중인 트랙 분류
         unconfirmed = [] # 아직 활성화되지 않은 새 트랙
@@ -302,13 +338,16 @@ class BYTETracker(object):
             else:
                 tracked_stracks.append(track)
 
+
         # 3단계: 첫 번째 매칭 (고득점 디텍션)
         strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)
         # 칼만 필터로 현재 위치를 예측
         STrack.multi_predict(strack_pool)
+
         dists = matching.iou_distance(strack_pool, detections)
         if not self.args.mot20:
             dists = matching.fuse_score(dists, detections)
+            # dists = matching.fuse_motion(self.kalman_filter, dists, strack_pool, detections)
         matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args.match_thresh)
 
         for itracked, idet in matches:
@@ -325,24 +364,44 @@ class BYTETracker(object):
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
 
+
         # 4단계: 두 번째 매칭 (저득점 디텍션)
         # 첫 번째 매칭에서 매칭되지 않은 트랙들을 저신뢰도 디텍션과 매칭 시도 (ByteTrack의 핵심 아이디어)
         if len(dets_second) > 0:
             '''Detections'''
-            detections_second = [STrack(STrack.tlbr_to_tlwh(tlbr), s) for
-                          (tlbr, s) in zip(dets_second, scores_second)]
+            if masks_second is not None and class_ids_second is not None:
+                detections_second = []
+                for i, (tlbr, s) in enumerate(zip(dets_second, scores_second)):
+                    mask = masks_second[i] if i < len(masks_second) else None
+                    cls_id = class_ids_second[i] if i < len(class_ids_second) else None
+
+                    detections_second.append(STrack(STrack.tlbr_to_tlwh(tlbr), s, mask=mask, class_id=cls_id))
+            else:
+                detections_second = [STrack(STrack.tlbr_to_tlwh(tlbr), s) for
+                            (tlbr, s) in zip(dets_second, scores_second)]
         else:
             detections_second = []
+
+        # 첫 번째 매칭에서 매칭되지 않은 추적 중인 트랙만 선택
         r_tracked_stracks = [strack_pool[i] for i in u_track if strack_pool[i].state == TrackState.Tracked]
+
+        # 선택된 트랙과 저신뢰도 디텍션 간의 IoU 기반 비용 행렬 계산
         dists = matching.iou_distance(r_tracked_stracks, detections_second)
+
+        # 헝가리안 알고리즘으로 최적의 매칭 찾기 (임계값 0.5)
         matches, u_track, u_detection_second = matching.linear_assignment(dists, thresh=0.5)
+
+        # 매칭된 트랙-디텍션 쌍 처리
         for itracked, idet in matches:
             track = r_tracked_stracks[itracked]
             det = detections_second[idet]
+
             if track.state == TrackState.Tracked:
+                # 이미 추적 중인 트랙 업데이트
                 track.update(det, self.frame_id)
                 activated_starcks.append(track)
             else:
+                # Lost 상태 트랙 재활성화
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
 
@@ -353,6 +412,7 @@ class BYTETracker(object):
                 track.mark_lost()
                 lost_stracks.append(track)
 
+
         # 5단계: 활성화되지 않은 트랙 처리
         detections = [detections[i] for i in u_detection]
 
@@ -360,6 +420,7 @@ class BYTETracker(object):
         dists = matching.iou_distance(unconfirmed, detections)
         if not self.args.mot20:
             dists = matching.fuse_score(dists, detections)
+            # dists = matching.fuse_motion(self.kalman_filter, dists, strack_pool, detections)
         matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=0.7)
 
         # 매칭된 트랙 활성화
@@ -371,6 +432,7 @@ class BYTETracker(object):
             track.mark_removed()
             removed_stracks.append(track)
 
+
         # 6단계: 새로운 트랙 생성
         for inew in u_detection:
             track = detections[inew]
@@ -379,13 +441,13 @@ class BYTETracker(object):
             track.activate(self.kalman_filter, self.frame_id)
             activated_starcks.append(track)
 
+
         # 7단계: 오래된 트랙 제거
         for track in self.lost_stracks:
             if self.frame_id - track.end_frame > self.max_time_lost:
                 track.mark_removed()
                 removed_stracks.append(track)
 
-        # print('Ramained match {} s'.format(t4-t3))
 
         # 각 상태별 트랙 리스트 업데이트 (추적 중, 잃어버림, 제거)
         self.tracked_stracks = [t for t in self.tracked_stracks if t.state == TrackState.Tracked]
