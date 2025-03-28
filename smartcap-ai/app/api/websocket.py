@@ -84,7 +84,6 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
         try:
             while True:
                 data = await websocket.receive()
-                logging.info(f"[Device {device_id}] Received data: {data}")
                 frame = None
 
                 if "bytes" in data:
@@ -115,7 +114,6 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                         if len(queue) >= MAX_QUEUE_SIZE:
                             queue.popleft()
                         queue.append(frame)
-                        logging.info(f"[Device {device_id}] Frame processed and queued")
                         
                         # 저장 플래그 활성화된 경우, 이미지도 Redis에 저장 (TTL 180초)
                         if SAVE_IMAGES_TO_REDIS:
