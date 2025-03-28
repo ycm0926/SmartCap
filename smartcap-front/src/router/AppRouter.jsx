@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useAuth } from '../store/AuthContext.jsx';
 import Login from '../pages/Login';
 import Dashboard from '../pages/Dashboard';
+import MapPage from '../pages/MapPage';
 
 // Protected route component
 const ProtectedRoute = ({ children }) => {
@@ -29,6 +30,14 @@ const AppRouter = () => {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+          <Route 
+          path="/map" 
+          element={
+            <ProtectedRoute>
+              <MapPage />
             </ProtectedRoute>
           } 
         />
