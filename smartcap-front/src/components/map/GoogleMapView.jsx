@@ -11,6 +11,9 @@ const GoogleMapView = ({
   getAlarmTypeText, 
   getRecognizedTypeText 
 }) => {
+  // 직접 window.google 확인
+  const isLoaded = window.google && window.google.maps;
+
   // 구글맵 컨테이너 스타일
   const containerStyle = {
     width: '100%',
@@ -39,7 +42,7 @@ const GoogleMapView = ({
 
   return (
     <div className="map-container">
-      <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "AIzaSyCot_dk88YZ0AjmkLy9Oufrffz-84kPEr0"}>
+      {isLoaded ? (
         <GoogleMap
           mapContainerStyle={containerStyle}
           center={center}
@@ -66,9 +69,12 @@ const GoogleMapView = ({
             );
           })}
         </GoogleMap>
-      </LoadScript>
+      ) : (
+        <div className="map-loading">지도 로딩 중...</div>
+      )}
     </div>
   );
 };
+
 
 export default GoogleMapView;
