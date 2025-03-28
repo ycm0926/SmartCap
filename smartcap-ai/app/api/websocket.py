@@ -10,6 +10,7 @@ from starlette.websockets import WebSocketState
 from app.core.logging_config import setup_logging
 from app.core.save_img import save_image, create_image_folder
 from app.core.save_video import create_video_from_images
+from app.core.image_preprocessing import read_binary_image, correct_fisheye_distortion
 
 setup_logging()
 
@@ -87,8 +88,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
             frame = None
 
             if "bytes" in data:
-                frame_data = np.frombuffer(data["bytes"], dtype=np.uint8)
-                frame = cv2.imdecode(frame_data, cv2.IMREAD_COLOR)
+                frame = read_binary_image(data["bytes"])
 
             elif "text" in data:
                 text_data = data["text"]
@@ -113,8 +113,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                         logging.info(f"Received base64 data length: {len(base64_data)}")
 
                         img_bytes = base64.b64decode(base64_data)
-                        frame_data = np.frombuffer(img_bytes, dtype=np.uint8)
-                        frame = cv2.imdecode(frame_data, cv2.IMREAD_COLOR)
+                        frame = read_binary_image(img_bytes)
                 except Exception as e:
                     logging.info(f"예상한 데이터 형식이 아닙니다.")
                     for key, value in data.items():
@@ -128,14 +127,15 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                 try:
                     if not isinstance(img_count, int):
                         raise ValueError(f"img_count 타입 오류: {type(img_count)}")
-                    save_image(folder, frame, img_count)
+                    preprocessed_frame = correct_fisheye_distortion(frame)
+                    save_image(folder, preprocessed_frame, img_count)
                     img_count += 1
                     last_frame_time = asyncio.get_event_loop().time()
 
                     queue = frame_queues[device_id]
                     if len(queue) >= MAX_QUEUE_SIZE:
                         queue.popleft()
-                    queue.append(frame)
+                    queue.append(preprocessed_frame)
                 except Exception as e:
                     logging.error(f"이미지 처리 중 오류 발생: {str(e)}")
             else:
