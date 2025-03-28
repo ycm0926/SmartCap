@@ -3,8 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useAuth } from '../store/AuthContext.jsx';
 import Login from '../pages/Login';
 import Dashboard from '../pages/Dashboard';
-import Test from '../pages/test.jsx';
 import AlarmSSE from '../components/AlarmSSE.js';;
+import MapPage from '../pages/MapPage';
 
 // Protected route component
 const ProtectedRoute = ({ children }) => {
@@ -27,12 +27,19 @@ const AppRouter = () => {
       <AlarmSSE/>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/test" element={<Test />} />
         <Route 
           path="/dashboard" 
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+          <Route 
+          path="/map" 
+          element={
+            <ProtectedRoute>
+              <MapPage />
             </ProtectedRoute>
           } 
         />
