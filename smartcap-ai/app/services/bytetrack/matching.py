@@ -32,7 +32,7 @@ def linear_assignment(cost_matrix, thresh):
     """
     헝가리안 알고리즘을 사용하여 비용 행렬을 기반으로 최적 매칭 계산
     """
-
+    
     # 비용 행렬이 비어있는 경우 처리
     if cost_matrix.size == 0:
         return np.empty((0, 2), dtype=int), tuple(range(cost_matrix.shape[0])), tuple(range(cost_matrix.shape[1]))
