@@ -1,25 +1,104 @@
-from app.services.bytetrack.byte_tracker import BYTETracker
+from app.services.bytetrack.byte_tracker import init_tracker
+import numpy as np
 
-# ByteTrack 설정
-class TrackerArgs:
-    track_thresh = 0.5 # 객체 추적에 사용할 최소 신뢰 점수
-    track_buffer = 30 # 객체가 사라진 후에도 몇 프레임 동안 정보를 유지할지
-                      # int(frame_rate / 30.0 * args.track_buffer)
-    match_thresh = 0.8 # 추적 중인 객체와 새로 들어온 detection 사이의 IOU가 이 값 이상이면 같은 객체로 매칭
-    aspect_ratio_thresh = 1.6 # 탐지된 박스의 가로세로 비율 제한값
-    min_box_area = 10 # 탐지된 박스의 최소 면적
-    mot20 = False # MOT20(극도로 혼잡한 장면 때 사용) 전용 모드 여부
+from app.config import VEHICLE_CLASSES
+from app.config import MATERIAL_CLASSES
+from app.config import FALL_ZONE_CLASSES
 
-# ByteTrack 초기화
-# frame_rate : 실시간 영상 프레임 수
-def init_tracker(frame_rate=7):
+
+# BYTETracker 인스턴스
+tracker = init_tracker()
+
+
+def track_objects_for_risk_detection(yolo_results):
     """
-    ByteTrack 초기화
-
-    Parameter:
-        frame_rate (int, optional): 실시간 영상 프레임 수. default=7
-
-    Return:
-        BYTETracker: 초기화된 ByteTrack 추적기 인스턴스
+    Ultralytics YOLO 모델의 결과를 ByteTrack에 연결합니다.
+    각 객체별 위험을 감지하기 위한 객체 추적을 수행합니다.
+    
+    Parameters:
+        yolo_results: YOLO 모델의 결과
+    
+    Returns:
+        class_groups: 추적된 객체 리스트
+        - vehicle: 중장비 차량
+        - material: 건설 자재
+        - fall_zone: 낙상 감지
     """
-    return BYTETracker(TrackerArgs(), frame_rate=frame_rate)
+
+    print(yolo_results)
+    # 이미지 크기 정보 가져오기
+    img_height, img_width = yolo_results.orig_shape
+    img_info = (img_height, img_width)
+    img_size = (img_height, img_width)
+    
+    # YOLO 결과에서 바운딩 박스, 신뢰도 값 추출
+    if yolo_results.boxes.data.shape[0] == 0:
+        # 감지된 객체가 없는 경우
+        return []
+    
+    boxes_data = yolo_results.boxes.data.cpu().numpy()  # [x1, y1, x2, y2, conf, cls]
+    
+    # ByteTrack 입력 형식에 맞게 변환: [x1, y1, x2, y2, score]
+    dets = np.zeros((len(boxes_data), 5))
+    dets[:, :4] = boxes_data[:, :4]  # 바운딩 박스
+    dets[:, 4] = boxes_data[:, 4]     # 신뢰도 점수
+    
+    # 클래스 ID 추출
+    class_ids = boxes_data[:, 5].astype(int)
+    
+    # 마스크 추출
+    masks = []
+    if hasattr(yolo_results, 'masks') and yolo_results.masks is not None:
+
+        for i in range(len(yolo_results.masks)):
+            mask_data = yolo_results.masks[i].data.cpu().numpy()
+            if len(mask_data.shape) == 3:
+                mask_data = mask_data[0]
+
+            binary_mask = (mask_data > 0.5).astype(np.uint8)
+            masks.append(binary_mask)
+    
+    # ByteTracker 업데이트
+    online_targets = tracker.update(
+        dets,
+        img_info,
+        img_size,
+        masks=masks,
+        class_ids=class_ids
+    )
+    
+    # 추적 결과 처리
+    class_groups = {
+        'vehicle': [],
+        'material': [],
+        'fall_zone': []
+    }
+
+    for track in online_targets:
+        if track.is_activated:
+            tracked_obj = {
+                'track_id': track.track_id,
+                'tlwh': track.tlwh,
+                'tlbr': track.tlbr,
+                'mask': track._mask,
+                'score': track.score,
+                'class_id': track.class_id if hasattr(track, 'class_id') else None,
+                'class_name': yolo_results.names[track.class_id] if hasattr(track, 'class_id') and track.class_id is not None else None
+            }
+            
+            if hasattr(track, '_rotated_box') and track._rotated_box is not None:
+                tracked_obj['rotated_box'] = track._rotated_box
+            
+            # 클래스 ID에 따라 분류
+            class_id = tracked_obj['class_id']
+            if class_id is not None:
+                if class_id in VEHICLE_CLASSES:
+                    class_groups['vehicle'].append(tracked_obj)
+                    
+                elif class_id == MATERIAL_CLASSES:
+                    class_groups['material'].append(tracked_obj)
+
+                elif class_id in FALL_ZONE_CLASSES:
+                   class_groups['fall_zone'].append(tracked_obj)
+    
+    return class_groups
