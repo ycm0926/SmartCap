@@ -158,8 +158,6 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                         logging.info(f"[Device {device_id}] GPS data detected: {text_data.strip()}")
                         save_gps_data(device_id, text_data.strip())
                         now = asyncio.get_event_loop().time()
-                        if now - last_trigger_time >= 5:
-                            last_trigger_time = now
                     else:
                         logging.warning(f"[Device {device_id}] Unexpected GPS text: {text_data}")
                 else:
