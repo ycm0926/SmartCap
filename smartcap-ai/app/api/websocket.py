@@ -106,8 +106,10 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                 
                 if frame is not None:
                     try:
+                        # 90도 좌측(반시계방향) 회전
+                        rotated_frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
                         # 로컬에 이미지 저장
-                        save_image(folder, frame, img_count)
+                        save_image(folder, rotated_frame, img_count)
                         img_count += 1
                         last_frame_time = asyncio.get_event_loop().time()
                         queue = frame_queues[device_id]
