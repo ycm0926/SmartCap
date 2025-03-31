@@ -25,8 +25,8 @@ const GoogleMapView = ({
 
   // 초기 중심 좌표 (서울 시청)
   const center = {
-    lat: 37.5665, 
-    lng: 126.9780
+    lat: 37.5, 
+    lng: 127.1
   };
   
   // 맵 스타일 (다크 모드)
@@ -102,8 +102,8 @@ const GoogleMapView = ({
       const newAlarm = alarmHistory.find(alarm => alarm.alarm_id === newAlarmId);
       if (newAlarm) {
         map.panTo({
-          lat: newAlarm.gps.coordinates[0], 
-          lng: newAlarm.gps.coordinates[1]
+          lat: newAlarm.gps.coordinates[1], // Note the order: [longitude, latitude]
+          lng: newAlarm.gps.coordinates[0]
         });
         map.setZoom(16);
       }
@@ -137,9 +137,12 @@ const GoogleMapView = ({
   const renderCustomMarkers = () => {
     return alarmHistory.map(alarm => {
       const isNew = alarm.alarm_id === newAlarmId;
+      
+      // GPS 좌표 형식 확인 및 처리
+      // Node.js 서버는 [longitude, latitude] 형식으로 보냄
       const position = {
-        lat: alarm.gps.coordinates[0],
-        lng: alarm.gps.coordinates[1]
+        lat: alarm.gps.coordinates[1], // 위도
+        lng: alarm.gps.coordinates[0]  // 경도
       };
       
       return (
@@ -191,8 +194,8 @@ const GoogleMapView = ({
           {selectedMarker && (
             <CustomInfoWindow
               position={{
-                lat: selectedMarker.gps.coordinates[0],
-                lng: selectedMarker.gps.coordinates[1]
+                lat: selectedMarker.gps.coordinates[1], // 위도
+                lng: selectedMarker.gps.coordinates[0]  // 경도
               }}
               alarm={selectedMarker}
               onClose={handleInfoWindowClose}

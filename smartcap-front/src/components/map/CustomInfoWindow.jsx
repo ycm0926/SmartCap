@@ -26,10 +26,13 @@ const CustomInfoWindow = ({
         <h3>{getAlarmTypeText(alarm.alarm_type)}</h3>
         <p><strong>대상:</strong> {getRecognizedTypeText(alarm.recognized_type)}</p>
         <p><strong>시간:</strong> {new Date(alarm.created_at).toLocaleString()}</p>
-        <button onClick={(e) => {
-          e.stopPropagation();
-          onDetailClick(alarm);
-        }}>
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            onDetailClick(alarm);
+          }}
+          className="bg-blue-500 hover:bg-blue-700 text-white py-1 px-2 rounded text-sm mt-2"
+        >
           상세 정보 보기
         </button>
       </div>
