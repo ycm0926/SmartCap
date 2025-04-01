@@ -547,3 +547,44 @@
 .custom-info-window button:hover {
   background-color: #0077e6;
 }
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+}
+
+.alarm-circle {
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+}
+
+.alarm-circle:hover {
+  transform: scale(1.1);
+}
+
+.alarm-circle {
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3); /* 원에 약간의 그림자 효과 추가 */
+}
+
+.alarm-circle:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5); /* 호버 시 그림자 강화 */
+}
+
+.alarm-circle:active {
+  transform: scale(0.95);
+  transition: transform 0.1s;
+}

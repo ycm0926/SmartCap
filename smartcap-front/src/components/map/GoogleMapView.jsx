@@ -23,13 +23,14 @@ const GoogleMapView = ({
     height: '100%'
   };
 
-  // 초기 중심 좌표 (서울 시청)
+  // 초기 중심 좌표 (역삼역)
   const center = {
-    lat: 37.5, 
-    lng: 127.1
+    lat: 37.500637, 
+    lng: 127.040012
   };
   
   // 맵 스타일 (다크 모드)
+ // 맵 스타일 (다크 모드 + POI 제거)
   const mapOptions = {
     disableDefaultUI: false,
     zoomControl: true,
@@ -73,6 +74,51 @@ const GoogleMapView = ({
         featureType: "water",
         elementType: "geometry",
         stylers: [{ color: "#17263c" }]
+      },
+      // POI 제거 (상점, 사업체, 명소 등)
+      {
+        featureType: "poi",
+        stylers: [{ visibility: "off" }]
+      },
+      // 대중교통 정보 제거
+      {
+        featureType: "transit",
+        stylers: [{ visibility: "off" }]
+      },
+      // 지점 라벨 제거
+      {
+        featureType: "poi.business",
+        stylers: [{ visibility: "off" }]
+      },
+      // 랜드마크 제거
+      {
+        featureType: "poi.park",
+        stylers: [{ visibility: "off" }]
+      },
+      // 일반적인 관심 장소 라벨 제거
+      {
+        featureType: "poi.attraction",
+        stylers: [{ visibility: "off" }]
+      },
+      // 정부 기관 라벨 제거
+      {
+        featureType: "poi.government",
+        stylers: [{ visibility: "off" }]
+      },
+      // 의료시설 라벨 제거
+      {
+        featureType: "poi.medical",
+        stylers: [{ visibility: "off" }]
+      },
+      // 학교 라벨 제거
+      {
+        featureType: "poi.school",
+        stylers: [{ visibility: "off" }]
+      },
+      // 스포츠 시설 라벨 제거
+      {
+        featureType: "poi.sports_complex",
+        stylers: [{ visibility: "off" }]
       }
     ]
   };
@@ -105,7 +151,7 @@ const GoogleMapView = ({
           lat: newAlarm.gps.coordinates[1], // Note the order: [longitude, latitude]
           lng: newAlarm.gps.coordinates[0]
         });
-        map.setZoom(16);
+        map.setZoom(18);
       }
     }
   }, [newAlarmId, alarmHistory, map]);
@@ -145,12 +191,59 @@ const GoogleMapView = ({
         lng: alarm.gps.coordinates[0]  // 경도
       };
       
+      // Warning, Danger 알림은 원형으로 표시
+      if (alarm.alarm_type === 'Warning' || alarm.alarm_type === 'Danger') {
+        return (
+          <OverlayView
+            key={alarm.alarm_id}
+            position={position}
+            mapPaneName={OverlayView.OVERLAY_LAYER}
+            getPixelPositionOffset={(width, height) => ({
+              x: -width / 2,
+              y: -height / 2
+            })}
+          >
+            <div 
+              className="alarm-circle" 
+              onClick={() => handleMarkerClick(alarm)}  // 클릭 핸들러 추가
+              style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                backgroundColor: alarm.alarm_type === 'Warning' 
+                  ? 'rgba(255, 193, 7, 0.4)' // 노란색 Warning(1차 알림)
+                  : 'rgba(255, 87, 34, 0.4)', // 다홍색 Danger(2차 알림)
+                border: 'none', // 테두리 제거
+                position: 'relative',
+                cursor: 'pointer' // 클릭 가능함을 나타내는 커서
+              }}
+            >
+              {isNew && (
+                <div className="pulse-effect" style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  borderRadius: '50%',
+                  animation: 'pulse 1.5s infinite',
+                  backgroundColor: alarm.alarm_type === 'Warning' 
+                    ? 'rgba(255, 193, 7, 0.2)' 
+                    : 'rgba(255, 152, 0, 0.2)', // 보라색에서 주황색으로 변경
+                }}></div>
+              )}
+            </div>
+          </OverlayView>
+        );
+      }
+    
+      // 일반 마커는 인식 타입에 따라 색상 변경
       return (
         <React.Fragment key={alarm.alarm_id}>
           {/* 기본 마커 */}
           <Marker
             position={position}
-            icon={getMarkerIcon(alarm.alarm_type, isNew)}
+            icon={getMarkerIcon(alarm.recognized_type, isNew)}
             onClick={() => handleMarkerClick(alarm)}
             animation={isNew ? window.google.maps.Animation.BOUNCE : null}
             zIndex={isNew ? 1000 : 1}
@@ -168,7 +261,7 @@ const GoogleMapView = ({
             >
               <div className="map-pulse-effect">
                 <div className="pulse-circle" style={{
-                  backgroundColor: `${getAlarmColor(alarm.alarm_type, true)}40`
+                  backgroundColor: `${getAlarmColor(alarm.recognized_type, true)}40`
                 }}></div>
               </div>
             </OverlayView>
@@ -184,7 +277,7 @@ const GoogleMapView = ({
         <GoogleMap
           mapContainerStyle={containerStyle}
           center={center}
-          zoom={13}
+          zoom={18}
           options={mapOptions}
           onLoad={handleMapLoad}
         >

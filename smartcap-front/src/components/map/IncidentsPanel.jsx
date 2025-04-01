@@ -12,7 +12,7 @@ const IncidentsPanel = ({ alarmHistory, newAlarmId, openAlarmDetails, getAlarmTy
       case 'Falling': 
         return "#ff0000";
       case 'Danger': 
-        return "#9c27b0";
+        return "#E76A1F";
       case 'Warning': 
         return "#FFC107";
       default: 

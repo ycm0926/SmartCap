@@ -1,4 +1,4 @@
-// src/pages/MapPage.jsx (DB 구조에 맞게 수정됨)
+// src/pages/MapPage.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import '../styles/MapPage.css';
@@ -23,6 +23,7 @@ const MapPage = () => {
   const alertAudioRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
+  const isInitialMount = useRef(true);
 
   // Monitor alarms for new entries
   useEffect(() => {
@@ -62,7 +63,36 @@ const MapPage = () => {
 
   // location state에서 알림 상태 확인
   useEffect(() => {
-    if (location.state?.alert) {
+    // 초기 마운트 시에는 실행하지 않음
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      
+      // 초기 진입시에도 사고 알림으로 인한 라우팅인 경우는 알림 활성화
+      if (location.state?.fromAccident) {
+        setIsAlertActive(true);
+        playAlertSound();
+        
+        if (location.state?.alarmId) {
+          setNewAlarmId(location.state.alarmId);
+          
+          setTimeout(() => {
+            setNewAlarmId(null);
+          }, 10000);
+        }
+      }
+      return;
+    }
+    
+    // 일반 네비게이션인지 확인
+    const isNormalNavigation = !location.state || (location.state && !location.state.alert && !location.state.fromAccident);
+    
+    if (isNormalNavigation) {
+      setIsAlertActive(false);
+      return;
+    }
+    
+    // 사고 알림이나 alert 상태가 있는 경우
+    if (location.state?.alert || location.state?.fromAccident) {
       setIsAlertActive(true);
       playAlertSound();
       
