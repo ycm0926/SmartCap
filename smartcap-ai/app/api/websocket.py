@@ -29,18 +29,17 @@ MAX_QUEUE_SIZE = 500  # 프레임 큐 최대 크기
 # 전역 플래그: run_model()이 1이나 2를 반환하면 True로 설정
 SAVE_IMAGES_TO_REDIS = False
 
-def save_gps_data(device_id: str, gps_data: str):
+async def save_gps_data(device_id: str):
     """
-    GPS 데이터를 Redis에 저장합니다.
-    모든 gps 데이터는 무조건 lat: 37.502, lng: 127.04로 저장되며,
-    동일한 device_id가 저장되면 해당 key의 value가 변경됩니다.
-    
-    Args:
-        device_id (str): GPS 디바이스 ID (예: "2")
-        gps_data (str): 수신한 GPS 데이터 문자열 (실제 값은 무시됨)
+    10초마다 고정 좌표값(lat: 37.502, lng: 127.04)을 Redis에 저장하는 태스크.
     """
-    redis_client.hset(device_id, mapping={"lat": 37.502, "lng": 127.04})
-    logging.info(f"[Device {device_id}] GPS data saved to Redis with key {device_id}")
+    while True:
+        try:
+            redis_client.hset(device_id, mapping={"lat": 37.502, "lng": 127.04})
+            logging.info(f"[Device {device_id}] Periodic GPS update saved.")
+        except Exception as e:
+            logging.error(f"[Device {device_id}] Error during periodic GPS update: {e}")
+        await asyncio.sleep(10)
 
 async def process_video_frames(device_id: str):
     global SAVE_IMAGES_TO_REDIS
@@ -87,12 +86,10 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                 frame = None
 
                 if "bytes" in data:
-                    logging.info(f"[Device {device_id}] Received binary data")
                     frame_data = np.frombuffer(data["bytes"], dtype=np.uint8)
                     frame = cv2.imdecode(frame_data, cv2.IMREAD_COLOR)
                 elif "text" in data:
                     text_data = data["text"]
-                    logging.info(f"[Device {device_id}] Received text data: {text_data[:50]}...")
                     if text_data.startswith("data:image"):
                         base64_data = text_data.split(",")[-1]
                         try:
@@ -145,26 +142,6 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
     
     elif device_id == "2":
         # GPS 디바이스 ("2") 처리
-        last_trigger_time = asyncio.get_event_loop().time()
         logging.info(f"[Device {device_id}] GPS device connected")
-        try:
-            while True:
-                data = await websocket.receive()
-                logging.info(f"[Device {device_id}] Received data: {data}")
-                if "text" in data:
-                    text_data = data["text"]
-                    logging.info(f"[Device {device_id}] Received text: {text_data[:50]}...")
-                    if "$GPGGA" in text_data or "$GPRMC" in text_data:
-                        logging.info(f"[Device {device_id}] GPS data detected: {text_data.strip()}")
-                        save_gps_data(device_id, text_data.strip())
-                        now = asyncio.get_event_loop().time()
-                    else:
-                        logging.warning(f"[Device {device_id}] Unexpected GPS text: {text_data}")
-                else:
-                    logging.warning(f"[Device {device_id}] Unexpected data format: {data}")
-        except Exception as e:
-            logging.error(f"[Device {device_id}] GPS loop exception: {e}")
-        finally:
-            clients.pop(device_id, None)
-            if websocket.application_state != WebSocketState.DISCONNECTED:
-                await websocket.close()
+        # 10초마다 고정 좌표값을 Redis에 저장하는 백그라운드 태스크 생성
+        gps_update_task = asyncio.create_task(save_gps_data(device_id))

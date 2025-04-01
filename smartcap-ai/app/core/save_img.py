@@ -40,13 +40,11 @@ def save_image(folder: str, frame: np.ndarray, count: int):
             logging.error(f"❌ frame 타입이 이상함: {type(frame)}")
             return
 
-        logging.info(f"🧪 frame shape: {getattr(frame, 'shape', 'no shape')}, dtype: {getattr(frame, 'dtype', 'no dtype')}")
+        logging.info(f"saved frame shape: {getattr(frame, 'shape', 'no shape')}, dtype: {getattr(frame, 'dtype', 'no dtype')}")
 
         success = cv2.imwrite(file_path, frame)
 
-        if success:
-            logging.info(f"✅ 이미지 저장 완료: {file_path}")
-        else:
+        if not success:
             logging.error(f"❌ 이미지 저장 실패 (cv2.imwrite 반환 False): {file_path}")
 
     except Exception as e:
