@@ -1,0 +1,140 @@
+/* src/styles/Login.css */
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: #1c232d;
+  background-image: 
+    radial-gradient(ellipse at 50% 100%, rgba(50, 60, 80, 0.6) 0%, transparent 70%);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-container::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(to bottom, rgba(30, 40, 50, 0) 0%, rgba(20, 30, 40, 0.4) 100%);
+  z-index: 1;
+}
+
+.login-wrapper {
+  width: 100%;
+  max-width: 400px;
+  background-color: rgba(20, 25, 30, 0.9);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  padding: 2rem;
+  position: relative;
+  z-index: 10;
+}
+
+.login-logo {
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+}
+
+.login-logo::before {
+  content: '';
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  background-color: #ff9f43;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.login-title {
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 500;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  color: #fff;
+  font-size: 0.875rem;
+}
+
+.form-group input {
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  border: none;
+  background-color: rgba(40, 50, 60, 0.8);
+  color: #fff;
+  font-size: 0.875rem;
+  width: 100%;
+}
+
+.form-group input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.form-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #0084ff;
+}
+
+.form-check label {
+  color: #fff;
+  font-size: 0.875rem;
+}
+
+.sign-in-button {
+  background-color: #0084ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  margin-top: 0.5rem;
+}
+
+.sign-in-button:hover {
+  background-color: #0077e6;
+}
+
+.error-message {
+  color: #ff4d4d;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.auto-login-notice {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  text-align: left;
+  font-style: italic;
+}

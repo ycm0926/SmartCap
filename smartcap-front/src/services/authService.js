@@ -1,16 +1,33 @@
 // src/services/authService.js
-export const isAuthenticated = () => {
-    // 예시로 'isAuthenticated'라는 값을 localStorage에서 가져옴
-    // 실제 서비스에서는 서버에서 토큰이나 세션 정보를 확인해야 할 수 있습니다.
-    return localStorage.getItem('isAuthenticated') === 'true';
-  };
-  
-  // 인증 상태 설정 함수 예시
-  export const login = () => {
-    localStorage.setItem('isAuthenticated', 'true');
-  };
-  
-  export const logout = () => {
-    localStorage.setItem('isAuthenticated', 'false');
-  };
-  
+// const API_URL = '/api/auth';
+const MY_URL = 'http://localhost:8080';
+const API_URL = '/api/auth';
+
+const authService = {
+  login: async (loginId, password, rememberMe = false) => {
+    try {
+      const response = await fetch(`${MY_URL+API_URL}/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ loginId, password, remember: rememberMe }),
+        credentials: 'include', // Important for cookies
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Login failed');
+      }
+
+      const data = await response.text();
+      return data;
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  }
+};
+
+export default authService;
+
