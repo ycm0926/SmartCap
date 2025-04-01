@@ -64,6 +64,9 @@ class STrack(BaseTrack):
             # mask에서 객체의 윤곽선(contour)을 찾고, minAreaRect 적용
             contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+            # 면적 기준으로 윤곽선 정렬 (세그멘테이션 마스킹 좌표가 튀는 것을 방지하기 위함)
+            contours = sorted(contours, key=cv2.contourArea, reverse=True)
+
             # 윤곽선 발견 시 윤곽선을 외접하는 최소 직사각형을 만듦
             if contours:
                 self._rotated_box = cv2.minAreaRect(contours[0])
