@@ -5,9 +5,21 @@ pipeline {
         DB_URL = "${env.DB_URL}"
         DB_USERNAME = "${env.DB_USERNAME}"
         DB_PASSWORD = "${env.DB_PASSWORD}"
+        DOCKER_CREDENTIALS_ID = "dockerHub"
+
     }
 
     stages {
+        stage('Docker Login') {
+                steps {
+                    withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                         sh '''
+                             echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+                         '''
+                    }
+                }
+            }
+
         stage('Debug') {
             steps {
                 sh '''
