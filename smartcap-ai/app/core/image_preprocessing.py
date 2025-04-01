@@ -76,3 +76,22 @@ def correct_fisheye_distortion(img_data):
     undistorted_img = cv2.remap(img_data, map1, map2, interpolation=cv2.INTER_LINEAR)
     
     return undistorted_img
+
+
+def preprocess_frame(binary_data):
+    """
+    바이너리 이미지 데이터를 읽고 어안렌즈 왜곡을 보정하는 함수
+    
+    Parameter:
+    - binary_data: 이미지의 바이너리 데이터
+    
+    Return:
+    - 왜곡이 보정된 이미지 (BGR 채널이 포함된 HWC 형식의 NumPy 배열)
+    """
+    # 바이너리 데이터를 이미지로 변환
+    img_data = read_binary_image(binary_data)
+    
+    # 어안렌즈 왜곡 보정
+    corrected_img = correct_fisheye_distortion(img_data)
+    
+    return corrected_img
