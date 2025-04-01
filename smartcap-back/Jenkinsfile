@@ -2,9 +2,11 @@ pipeline {
     agent any
 
     environment {
-        DB_URL = "${env.DB_URL}"
-        DB_USERNAME = "${env.DB_USERNAME}"
-        DB_PASSWORD = "${env.DB_PASSWORD}"
+        SPRING_DATASOURCE_URL = "${env.SPRING_DATASOURCE_URL}"
+        SPRING_DATASOURCE_USERNAME = "${env.SPRING_DATASOURCE_USERNAME}"
+        SPRING_DATASOURCE_PASSWORD = "${env.SPRING_DATASOURCE_PASSWORD}"
+        SPRING_DATASOURCE_DRIVER_CLASS_NAME = "${env.SPRING_DATASOURCE_DRIVER_CLASS_NAME}"
+
         DOCKER_CREDENTIALS_ID = "dockerHub"
 
     }
@@ -23,8 +25,8 @@ pipeline {
         stage('Debug') {
             steps {
                 sh '''
-                    echo "DB_URL: $DB_URL"
-                    echo "DB_USERNAME: $DB_USERNAME"
+                    echo "SPRING_DATASOURCE_URL: $SPRING_DATASOURCE_URL"
+                    echo "SPRING_DATASOURCE_USERNAME: $SPRING_DATASOURCE_USERNAME"
                 '''
             }
         }
@@ -57,9 +59,10 @@ pipeline {
                             --network smartcap-network \
                             -p 8080:8080 \
                             -v smartcap-back-volume:/app/data \
-                            -e DB_URL=$DB_URL \
-                            -e DB_USERNAME=$DB_USERNAME \
-                            -e DB_PASSWORD=$DB_PASSWORD \
+                            -e SPRING_DATASOURCE_URL=$SPRING_DATASOURCE_URL \
+                            -e SPRING_DATASOURCE_USERNAME=$SPRING_DATASOURCE_USERNAME \
+                            -e SPRING_DATASOURCE_PASSWORD=$SPRING_DATASOURCE_PASSWORD \
+                            -e SPRING_DATASOURCE_DRIVER_CLASS_NAME=$SPRING_DATASOURCE_DRIVER_CLASS_NAME \
                             smartcap-back
                     '''
                 }
