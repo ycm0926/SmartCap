@@ -53,12 +53,23 @@ async def process_video_frames(device_id: str):
                 # 결과가 1이나 2이면 이미지 저장 플래그 활성화
                 if result in [1, 2]:
                     SAVE_IMAGES_TO_REDIS = True
-                # 결과가 1,2,3이면 GPS 디바이스("2")로 전송
-                if result in [1, 2, 3]:
-                    gps_ws = clients.get("2")
-                    if gps_ws and gps_ws.application_state == WebSocketState.CONNECTED:
-                        await gps_ws.send_text(str(result))
-                        logging.info(f"[Device {device_id}] Sent result {result} to GPS device")
+
+                gps_ws = clients.get("2")
+
+                if gps_ws and gps_ws.application_state == WebSocketState.CONNECTED:
+                    try:
+                        if result == 1:
+                            await gps_ws.send_text("1")
+                            logging.info(f"[Device {device_id}] Sent result 1 to GPS device")
+                        elif result == 2:
+                            await gps_ws.send_text("2")
+                            logging.info(f"[Device {device_id}] Sent result 2 to GPS device")
+                        elif result == 3:
+                            await gps_ws.send_text("3")
+                            logging.info(f"[Device {device_id}] Sent result 3 to GPS device")
+                    except Exception as e:
+                        logging.error(f"[Device {device_id}] Failed to send to GPS device: {e}")
+
             except Exception as e:
                 logging.error(f"[Device {device_id}] run_model error: {e}")
         else:
@@ -141,7 +152,15 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                 await websocket.close()
     
     elif device_id == "2":
-        # GPS 디바이스 ("2") 처리
         logging.info(f"[Device {device_id}] GPS device connected")
-        # 10초마다 고정 좌표값을 Redis에 저장하는 백그라운드 태스크 생성
         gps_update_task = asyncio.create_task(save_gps_data(device_id))
+
+        try:
+            while True:
+                await asyncio.sleep(1)  # 심플한 keep-alive 루프
+        except Exception as e:
+            logging.error(f"[Device {device_id}] GPS WebSocket error: {e}")
+        finally:
+            gps_update_task.cancel()
+            clients.pop(device_id, None)
+            logging.info(f"[Device {device_id}] GPS device disconnected")
