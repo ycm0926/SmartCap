@@ -86,12 +86,10 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                 frame = None
 
                 if "bytes" in data:
-                    logging.info(f"[Device {device_id}] Received binary data")
                     frame_data = np.frombuffer(data["bytes"], dtype=np.uint8)
                     frame = cv2.imdecode(frame_data, cv2.IMREAD_COLOR)
                 elif "text" in data:
                     text_data = data["text"]
-                    logging.info(f"[Device {device_id}] Received text data: {text_data[:50]}...")
                     if text_data.startswith("data:image"):
                         base64_data = text_data.split(",")[-1]
                         try:
