@@ -6,9 +6,9 @@ pipeline {
         SPRING_DATASOURCE_USERNAME = "${env.SPRING_DATASOURCE_USERNAME}"
         SPRING_DATASOURCE_PASSWORD = "${env.SPRING_DATASOURCE_PASSWORD}"
         SPRING_DATASOURCE_DRIVER_CLASS_NAME = "${env.SPRING_DATASOURCE_DRIVER_CLASS_NAME}"
-
+        S3_BUCKET_NAME = "${env.S3_BUCKET_NAME}"
+        S3_FOLDER = "${env.S3_FOLDER}"
         DOCKER_CREDENTIALS_ID = "dockerHub"
-
     }
 
     stages {
@@ -27,6 +27,8 @@ pipeline {
                 sh '''
                     echo "SPRING_DATASOURCE_URL: $SPRING_DATASOURCE_URL"
                     echo "SPRING_DATASOURCE_USERNAME: $SPRING_DATASOURCE_USERNAME"
+                    echo "S3_BUCKET_NAME: $S3_BUCKET_NAME"
+                    echo "S3_FOLDER: $S3_FOLDER"
                 '''
             }
         }
@@ -63,6 +65,8 @@ pipeline {
                             -e SPRING_DATASOURCE_USERNAME=$SPRING_DATASOURCE_USERNAME \
                             -e SPRING_DATASOURCE_PASSWORD=$SPRING_DATASOURCE_PASSWORD \
                             -e SPRING_DATASOURCE_DRIVER_CLASS_NAME=$SPRING_DATASOURCE_DRIVER_CLASS_NAME \
+                            -e S3_BUCKET_NAME=$S3_BUCKET_NAME \
+                            -e S3_FOLDER=$S3_FOLDER \
                             smartcap-back
                     '''
                 }
