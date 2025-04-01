@@ -13,6 +13,9 @@ pipeline {
         REDIS_HOST = "${env.REDIS_HOST}"
         REDIS_PORT = "${env.REDIS_PORT}"
         REDIS_DB   = "${env.REDIS_DB}"
+
+        AWS_ACCESS_KEY_ID = "${env.AWS_ACCESS_KEY_ID}"
+        AWS_SECRET_ACCESS_KEY = "${env.AWS_SECRET_ACCESS_KEY}"
     }
 
     stages {
@@ -36,6 +39,8 @@ pipeline {
                     echo "REDIS_HOST: $REDIS_HOST"
                     echo "REDIS_PORT: $REDIS_PORT"
                     echo "REDIS_DB: $REDIS_DB"
+                    echo "AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID"
+                    echo "AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY"
                 '''
             }
         }
@@ -77,6 +82,8 @@ pipeline {
                             -e REDIS_HOST=$REDIS_HOST \
                             -e REDIS_PORT=$REDIS_PORT \
                             -e REDIS_DB=$REDIS_DB \
+                            -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+                            -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
                             smartcap-back
                     '''
                 }
