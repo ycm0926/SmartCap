@@ -25,7 +25,6 @@ def track_objects_for_risk_detection(yolo_results):
         - fall_zone: 낙상 감지
     """
 
-    print(yolo_results)
     # 이미지 크기 정보 가져오기
     img_height, img_width = yolo_results.orig_shape
     img_info = (img_height, img_width)

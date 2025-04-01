@@ -15,3 +15,8 @@ MATERIAL_CLASSES = {3}
 
 # 낙상 감지 추적 로직을 사용할 클래스
 FALL_ZONE_CLASSES = {4, 5}
+
+class RiskLevel:
+    SAFE = 0      # 안전한 상태
+    WARNING = 1   # 1차 알림 발송 상태
+    DANGER = 2    # 2차 알림 발송 상태
