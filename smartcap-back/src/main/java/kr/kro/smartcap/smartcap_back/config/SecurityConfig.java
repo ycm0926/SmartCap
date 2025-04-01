@@ -29,7 +29,7 @@ public class SecurityConfig {
                         // OPTIONS 메서드(프리플라이트 요청)는 모두 허용
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 로그인, 회원가입 등 공개 엔드포인트 허용 (필요 시 추가)
-                        .requestMatchers("/login", "/register").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
                         // 나머지는 인증 필요
                         .anyRequest().authenticated()
                 )
@@ -60,7 +60,8 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        config.setAllowedOriginPatterns(Arrays.asList("http://localhost:5173")); // 프론트엔드 주소
+//        config.setAllowedOriginPatterns(Arrays.asList("http://localhost:5173")); // 프론트엔드 주소
+        config.setAllowedOriginPatterns(Arrays.asList("*")); //테스트용 전체 경로 허용
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
         config.setExposedHeaders(Arrays.asList("Authorization"));  // 노출할 헤더
