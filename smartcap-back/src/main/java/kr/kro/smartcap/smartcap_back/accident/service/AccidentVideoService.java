@@ -26,7 +26,6 @@ public class AccidentVideoService {
     private final AccidentVideoRepository accidentVideoRepository;
     private final S3Uploader s3Uploader;
 
-    // S3 버킷 및 폴더
     @Value("${s3.bucket-name}")
     private String bucketName;
 
@@ -34,21 +33,22 @@ public class AccidentVideoService {
     private String s3Folder;
 
     /**
-     * deviceId로 Redis에 저장된 이미지들을 모아 초당 8프레임 영상 -> S3 업로드 -> accident_videos 테이블에 저장
+     * Redis에 저장된 이미지들을 모아 영상 생성, S3 업로드, DB(accident_videos) 기록.
+     * 이미지 키가 없거나 유효 이미지가 하나도 없으면 null 반환.
      *
      * @param deviceId   디바이스 ID
-     * @param accidentId 사고 기록 PK (accident_history.accident_id)
-     * @return AccidentVideo 엔티티
+     * @param accidentId 사고 기록 PK
+     * @return AccidentVideo 엔티티, 없으면 null
      */
     public AccidentVideo createAccidentVideo(int deviceId, Long accidentId) {
         // 1) Redis에서 이미지 키 조회
         String pattern = "device:" + deviceId + ":image:*";
         Set<String> keys = redisTemplate.keys(pattern);
         if (keys == null || keys.isEmpty()) {
-            throw new IllegalStateException("No images found in Redis for deviceId=" + deviceId);
+            return null;
         }
 
-        // 2) 키를 시간순 정렬 (키에 타임스탬프가 포함되어 있다고 가정)
+        // 2) 키를 시간순 정렬 (타임스탬프 포함)
         List<String> sortedKeys = new ArrayList<>(keys);
         sortedKeys.sort((k1, k2) -> Long.compare(parseTimestamp(k1), parseTimestamp(k2)));
 
@@ -63,11 +63,11 @@ public class AccidentVideoService {
                     frames.add(img);
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                // Redis 관련 로그는 남기지 않음
             }
         }
         if (frames.isEmpty()) {
-            throw new IllegalStateException("No valid images decoded from Redis for deviceId=" + deviceId);
+            return null;
         }
 
         // 4) 영상 생성: AWTSequenceEncoder 사용 (fps 8)
@@ -87,21 +87,20 @@ public class AccidentVideoService {
         String s3Key = s3Folder + "device_" + deviceId + "_" + Instant.now().toEpochMilli() + ".mp4";
         String s3Url = s3Uploader.uploadFile(new File(localVideoPath), bucketName, s3Key);
 
-        // 6) DB(accident_videos) 저장
+        // 6) DB에 AccidentVideo 기록
         AccidentVideo accidentVideo = new AccidentVideo();
         accidentVideo.setAccidentId(accidentId);
         accidentVideo.setVideoUrl(s3Url);
         AccidentVideo saved = accidentVideoRepository.save(accidentVideo);
 
-        // 7) 임시 파일 삭제
+        // 7) 임시 영상 파일 삭제
         new File(localVideoPath).delete();
 
         return saved;
     }
 
     /**
-     * Redis 키에서 타임스탬프 부분 추출
-     * 예: device:1:image:1679999999999_123 -> 1679999999999
+     * Redis 키에서 타임스탬프 추출 (예: device:1:image:1679999999999_123 -> 1679999999999)
      */
     private long parseTimestamp(String key) {
         String[] parts = key.split(":");
