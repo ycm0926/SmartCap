@@ -1,6 +1,5 @@
 package kr.kro.smartcap.smartcap_back.stats.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.kro.smartcap.smartcap_back.stats.dto.StatUpdateDto;
 import kr.kro.smartcap.smartcap_back.stats.sse.StatSseEmitterManager;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +17,6 @@ public class RedisStatService {
 
     private final RedisTemplate<String, String> redisTemplate;
     private final StatSseEmitterManager statSseEmitterManager;
-    private final ObjectMapper objectMapper;
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("HH");
