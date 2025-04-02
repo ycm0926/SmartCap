@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # 스프링 서버로 사고 정보를 전송하는 함수 (비동기)
 async def notify_accident():
-    url = "http://localhost:8080/api/accidents/1/notify"
+    url = "http://localhost:8080/api/accidents/23/notify"
     payload = {
         "constructionSitesId": 1,
         "accidentType": "Accident Detected"
