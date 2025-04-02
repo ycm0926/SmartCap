@@ -32,15 +32,8 @@ async def process_video_frames(device_id: str):
                     gps_ws = state.clients.get("2")
                     if gps_ws and gps_ws.application_state == WebSocketState.CONNECTED:
                         try:
-                            if result == 1:
-                                await gps_ws.send_text("1")
-                                logger.info(f"[Device {device_id}] Sent result 1 to GPS device")
-                            elif result == 2:
-                                await gps_ws.send_text("2")
-                                logger.info(f"[Device {device_id}] Sent result 2 to GPS device")
-                            elif result == 3:
-                                await gps_ws.send_text("3")
-                                logger.info(f"[Device {device_id}] Sent result 3 to GPS device")
+                            await gps_ws.send_text(str(result))
+                            logger.info(f"[Device {device_id}] Sent result {result} to GPS device")
                         except Exception as e:
                             logger.error(f"[Device {device_id}] Failed to send to GPS device: {e}")
                 except Exception as e:
