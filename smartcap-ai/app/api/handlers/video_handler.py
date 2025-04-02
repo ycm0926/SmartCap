@@ -20,12 +20,10 @@ logger = logging.getLogger(__name__)
 
 # 스프링 서버로 사고 정보를 전송하는 함수 (비동기)
 async def notify_accident():
-    url = "http://localhost:8080/api/accident/1/notify"
+    url = "http://localhost:8080/api/accidents/1/notify"
     payload = {
         "constructionSitesId": 1,
-        "weather": "Sunny",
-        "accidentType": "Accident Detected",
-        "gps": "POINT(127.04 37.502)"
+        "accidentType": "Accident Detected"
     }
     async with httpx.AsyncClient() as client:
         response = await client.post(url, json=payload)
@@ -75,12 +73,13 @@ async def handle_video_device(websocket, device_id: str):
                     logger.info(f"[Device {device_id}] Image saved locally, count: {img_count}")
                     
                     # Redis 저장: result에 상관없이 저장할 경우
+                    # redis 저장 Device 23으로 고정
                     ret, buf = cv2.imencode('.jpg', rotated_frame)
                     if ret:
                         image_bytes = buf.tobytes()
-                        key = f"device:{device_id}:image:{int(time.time() * 1000)}_{img_count}"
+                        key = f"device 23:image:{int(time.time() * 1000)}_{img_count}"
                         redis_client.set(key, image_bytes, ex=180)
-                        logger.info(f"[Device {device_id}] Image saved to Redis with key {key}")
+                        logger.info(f"[Device 23] Image saved to Redis with key {key}")
                     
                     # 사고 발생인 경우 (result == 3) 스프링에 사고 알림 전송
                     if result == 3:
