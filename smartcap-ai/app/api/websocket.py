@@ -1,166 +1,17 @@
-# app/api/websocket.py
-import cv2
-import base64
-import numpy as np
 import asyncio
 import logging
-import os
-import time
-from collections import deque
-
 from fastapi import WebSocket
-from starlette.websockets import WebSocketState
 
-from app.core.logging_config import setup_logging
-from app.core.save_img import save_image, create_image_folder
-from app.core.save_video import create_video_from_images
-from app.core.redis_client import redis_client
-from app.models.run_model import run_model
+from app.api.handlers.video_handler import handle_video_device
+from app.api.handlers.gps_handler import handle_gps_device
 
-# 로깅 설정
-setup_logging()
-
-# 전역 상태 관리
-clients = {}          # device_id: WebSocket 객체 저장
-frame_queues = {}     # 영상 디바이스("1")의 프레임을 저장하는 deque
-processing_tasks = {} # 영상 디바이스("1")의 백그라운드 프레임 처리 작업
-MAX_QUEUE_SIZE = 500  # 프레임 큐 최대 크기
-
-# 전역 플래그: run_model()이 1이나 2를 반환하면 True로 설정
-SAVE_IMAGES_TO_REDIS = False
-
-async def save_gps_data(device_id: str):
-    """
-    10초마다 고정 좌표값(lat: 37.502, lng: 127.04)을 Redis에 저장하는 태스크.
-    """
-    while True:
-        try:
-            redis_client.hset(device_id, mapping={"lat": 37.502, "lng": 127.04})
-            logging.info(f"[Device {device_id}] Periodic GPS update saved.")
-        except Exception as e:
-            logging.error(f"[Device {device_id}] Error during periodic GPS update: {e}")
-        await asyncio.sleep(10)
-
-async def process_video_frames(device_id: str):
-    global SAVE_IMAGES_TO_REDIS
-    queue = frame_queues[device_id]
-    while True:
-        if queue:
-            frame = queue.popleft()
-            try:
-                result = run_model(frame)
-                logging.info(f"[Device {device_id}] run_model result: {result}")
-                # 결과가 1이나 2이면 이미지 저장 플래그 활성화
-                if result in [1, 2]:
-                    SAVE_IMAGES_TO_REDIS = True
-
-                gps_ws = clients.get("2")
-
-                if gps_ws and gps_ws.application_state == WebSocketState.CONNECTED:
-                    try:
-                        if result == 1:
-                            await gps_ws.send_text("1")
-                            logging.info(f"[Device {device_id}] Sent result 1 to GPS device")
-                        elif result == 2:
-                            await gps_ws.send_text("2")
-                            logging.info(f"[Device {device_id}] Sent result 2 to GPS device")
-                        elif result == 3:
-                            await gps_ws.send_text("3")
-                            logging.info(f"[Device {device_id}] Sent result 3 to GPS device")
-                    except Exception as e:
-                        logging.error(f"[Device {device_id}] Failed to send to GPS device: {e}")
-
-            except Exception as e:
-                logging.error(f"[Device {device_id}] run_model error: {e}")
-        else:
-            await asyncio.sleep(0.05)
+logger = logging.getLogger(__name__)
 
 async def websocket_endpoint(websocket: WebSocket, device_id: str):
-    global SAVE_IMAGES_TO_REDIS
     await websocket.accept()
-    clients[device_id] = websocket
-    logging.info(f"[Device {device_id}] Connection accepted")
-    
+    logger.info(f"[Device {device_id}] Connection accepted")
+
     if device_id == "1":
-        # 영상 디바이스 ("1") 처리
-        frame_queues[device_id] = deque()
-        processing_tasks[device_id] = asyncio.create_task(process_video_frames(device_id))
-        folder = create_image_folder()
-        img_count = 1
-        start_time = asyncio.get_event_loop().time()
-        last_frame_time = start_time
-        logging.info(f"[Device {device_id}] Video device connected")
-        
-        try:
-            while True:
-                data = await websocket.receive()
-                frame = None
-
-                if "bytes" in data:
-                    frame_data = np.frombuffer(data["bytes"], dtype=np.uint8)
-                    frame = cv2.imdecode(frame_data, cv2.IMREAD_COLOR)
-                elif "text" in data:
-                    text_data = data["text"]
-                    if text_data.startswith("data:image"):
-                        base64_data = text_data.split(",")[-1]
-                        try:
-                            img_bytes = base64.b64decode(base64_data)
-                            frame_data = np.frombuffer(img_bytes, dtype=np.uint8)
-                            frame = cv2.imdecode(frame_data, cv2.IMREAD_COLOR)
-                        except Exception as e:
-                            logging.error(f"[Device {device_id}] Base64 decoding error: {e}")
-                    else:
-                        logging.warning(f"[Device {device_id}] Unexpected text data received")
-                
-                if frame is not None:
-                    try:
-                        # 90도 좌측(반시계방향) 회전
-                        rotated_frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                        # 로컬에 이미지 저장
-                        save_image(folder, rotated_frame, img_count)
-                        img_count += 1
-                        last_frame_time = asyncio.get_event_loop().time()
-                        queue = frame_queues[device_id]
-                        if len(queue) >= MAX_QUEUE_SIZE:
-                            queue.popleft()
-                        queue.append(frame)
-                        
-                        # 저장 플래그 활성화된 경우, 이미지도 Redis에 저장 (TTL 180초)
-                        if SAVE_IMAGES_TO_REDIS:
-                            ret, buf = cv2.imencode('.jpg', frame)
-                            if ret:
-                                image_bytes = buf.tobytes()
-                                # 고유 키 생성: device와 타임스탬프, 이미지 카운터 포함
-                                key = f"device:1:image:{int(time.time() * 1000)}_{img_count}"
-                                redis_client.set(key, image_bytes, ex=180)
-                                logging.info(f"[Device {device_id}] Image saved to Redis with key {key}")
-                    except Exception as e:
-                        logging.error(f"[Device {device_id}] Error processing image: {e}")
-                else:
-                    logging.warning(f"[Device {device_id}] No valid frame data received")
-        except Exception as e:
-            logging.error(f"[Device {device_id}] Video loop exception: {e}")
-        finally:
-            clients.pop(device_id, None)
-            frame_queues.pop(device_id, None)
-            task = processing_tasks.pop(device_id, None)
-            if task:
-                task.cancel()
-            duration = last_frame_time - start_time
-            create_video_from_images(folder, duration)
-            if websocket.application_state != WebSocketState.DISCONNECTED:
-                await websocket.close()
-    
+        await handle_video_device(websocket, device_id)
     elif device_id == "2":
-        logging.info(f"[Device {device_id}] GPS device connected")
-        gps_update_task = asyncio.create_task(save_gps_data(device_id))
-
-        try:
-            while True:
-                await asyncio.sleep(1)  # 심플한 keep-alive 루프
-        except Exception as e:
-            logging.error(f"[Device {device_id}] GPS WebSocket error: {e}")
-        finally:
-            gps_update_task.cancel()
-            clients.pop(device_id, None)
-            logging.info(f"[Device {device_id}] GPS device disconnected")
+        await handle_gps_device(websocket, device_id)

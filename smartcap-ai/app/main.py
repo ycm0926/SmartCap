@@ -1,7 +1,7 @@
+from app.core.logging_config import setup_logging
+setup_logging() # 최상단에 위치시켜야 로그 설정적용됨
 from fastapi import FastAPI, WebSocket
 from app.api.websocket import websocket_endpoint
-from app.core.logging_config import setup_logging
-
 
 app = FastAPI(
     title="FastAPI SmartCap Server",
