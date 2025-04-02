@@ -14,7 +14,7 @@ async def save_gps_data(device_id: str):
         while True:
             try:
                 # redis 저장 device id 23으로 고정
-                redis_client.hset(1, mapping={"lat": 37.502, "lng": 127.04})
+                redis_client.hset(23, mapping={"lat": 37.502, "lng": 127.04})
                 logger.info(f"[Device 23] Periodic GPS update saved.")
             except Exception as e:
                 logger.error(f"[Device 23] Error during periodic GPS update: {e}")
