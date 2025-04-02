@@ -16,6 +16,9 @@ pipeline {
 
         AWS_ACCESS_KEY_ID = "${env.AWS_ACCESS_KEY_ID}"
         AWS_SECRET_ACCESS_KEY = "${env.AWS_SECRET_ACCESS_KEY}"
+
+        WEATHER_API_KEY = "${env.WEATHER_API_KEY}"
+
     }
 
     stages {
@@ -84,6 +87,7 @@ pipeline {
                             -e REDIS_DB=$REDIS_DB \
                             -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
                             -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+                            -e WEATHER_API_KEY=$WEATHER_API_KEY \
                             smartcap-back
                     '''
                 }
