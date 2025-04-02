@@ -1,5 +1,5 @@
 # ByteTrack시 Segmentation 마스크를 사용할 클래스
-SPECIFIC_CLASSES = {3}
+SPECIFIC_CLASSES = {0}
 
 # 위치 정보(중심점 거리)에 부여할 가중치
 POSITION_WEIGHT = 0.4
@@ -11,7 +11,7 @@ MAX_CENTER_DIST = 80
 VEHICLE_CLASSES = {1, 2}
 
 # 건설 자재 추적 로직을 사용할 클래스
-MATERIAL_CLASSES = {3}
+MATERIAL_CLASSES = {0}
 
 # 낙상 감지 추적 로직을 사용할 클래스
 FALL_ZONE_CLASSES = {4, 5}

@@ -29,11 +29,18 @@ def track_objects_for_risk_detection(yolo_results):
     img_height, img_width = yolo_results.orig_shape
     img_info = (img_height, img_width)
     img_size = (img_height, img_width)
+
+    # 추적 결과 처리
+    class_groups = {
+        'vehicle': [],
+        'material': [],
+        'fall_zone': []
+    }
     
     # YOLO 결과에서 바운딩 박스, 신뢰도 값 추출
     if yolo_results.boxes.data.shape[0] == 0:
         # 감지된 객체가 없는 경우
-        return []
+        return class_groups
     
     boxes_data = yolo_results.boxes.data.cpu().numpy()  # [x1, y1, x2, y2, conf, cls]
     
@@ -65,13 +72,6 @@ def track_objects_for_risk_detection(yolo_results):
         masks=masks,
         class_ids=class_ids
     )
-    
-    # 추적 결과 처리
-    class_groups = {
-        'vehicle': [],
-        'material': [],
-        'fall_zone': []
-    }
 
     for track in online_targets:
         if track.is_activated:
@@ -91,13 +91,14 @@ def track_objects_for_risk_detection(yolo_results):
             # 클래스 ID에 따라 분류
             class_id = tracked_obj['class_id']
             if class_id is not None:
+
                 if class_id in VEHICLE_CLASSES:
                     class_groups['vehicle'].append(tracked_obj)
                     
-                elif class_id == MATERIAL_CLASSES:
+                elif class_id in MATERIAL_CLASSES:
                     class_groups['material'].append(tracked_obj)
 
                 elif class_id in FALL_ZONE_CLASSES:
                    class_groups['fall_zone'].append(tracked_obj)
-    
+        
     return class_groups
