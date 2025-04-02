@@ -19,15 +19,16 @@ from app.api import state
 logger = logging.getLogger(__name__)
 
 # 스프링 서버로 사고 정보를 전송하는 함수 (비동기)
-async def notify_accident():
-    url = "http://localhost:8080/api/accidents/23/notify"
+async def notify_accident(accident_type: int):
+    url = "http://localhost:8080/api/accidents/23/notify" # 23아이디 고정
     payload = {
         "constructionSitesId": 1,
-        "accidentType": "Accident Detected"
+        "accidentType": accident_type  # 전달받은 정수값 사용
     }
     async with httpx.AsyncClient() as client:
         response = await client.post(url, json=payload)
         logger.info(f"Accident notify response: {response.status_code} {response.text}")
+
 
 async def handle_video_device(websocket, device_id: str):
     state.clients[device_id] = websocket
@@ -83,7 +84,7 @@ async def handle_video_device(websocket, device_id: str):
                     
                     # 사고 발생인 경우 (result == 3) 스프링에 사고 알림 전송
                     if result == 3:
-                        await notify_accident()
+                        await notify_accident(result)
                     
                     img_count += 1
                 else:
