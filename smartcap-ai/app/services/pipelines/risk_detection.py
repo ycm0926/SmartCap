@@ -1,6 +1,7 @@
 from app.services.object_tracking import track_objects_for_risk_detection
 from app.services.risk_detection.materials import detect_material_risks
 from app.config import RiskLevel
+from app.services.pipelines.harzard_model_runner import run_inference
 
 
 def run_risk_detection_pipeline(frame, frame_count):
@@ -24,8 +25,7 @@ def run_risk_detection_pipeline(frame, frame_count):
     frame_count = frame_count
     
     # 1. YOLO 모델로 객체 감지
-    # yolo_results = run_yolo_detection(frame)
-    yolo_results = None
+    yolo_results = run_inference(frame)
     
     # 2. 객체 추적
     tracked_objects = track_objects_for_risk_detection(yolo_results)
