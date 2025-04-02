@@ -1,11 +1,7 @@
 package kr.kro.smartcap.smartcap_back.stats.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.kro.smartcap.smartcap_back.stats.dto.AlarmEventDto;
 import kr.kro.smartcap.smartcap_back.stats.dto.StatUpdateDto;
 import kr.kro.smartcap.smartcap_back.stats.sse.StatSseEmitterManager;
-import kr.kro.smartcap.smartcap_back.stats.dto.AlarmTestRequestDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -21,7 +17,6 @@ public class RedisStatService {
 
     private final RedisTemplate<String, String> redisTemplate;
     private final StatSseEmitterManager statSseEmitterManager;
-    private final ObjectMapper objectMapper;
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("HH");
@@ -45,21 +40,6 @@ public class RedisStatService {
         // 월별 통계 (TTL 없음)
         String monthKey = "summary:month:" + month;
         incrementAndBroadcast(monthKey, field, null, null, "month");
-    }
-
-    public void storeAlarmAndBroadcast(AlarmTestRequestDto alarm) throws JsonProcessingException {
-        String key = "alarms:" + alarm.getCreatedAt(); // alarms:2025-04-01
-        redisTemplate.opsForList().rightPush(key, objectMapper.writeValueAsString(alarm));
-        redisTemplate.expire(key, 7, TimeUnit.DAYS); // 일주일치만 유지
-
-        statSseEmitterManager.broadcast("stat_update", AlarmEventDto.builder()
-                .constructionSitesId(alarm.getConstructionSitesId())
-                .gps(alarm.getGps())
-                .alarmType(alarm.getAlarmType())
-                .recognizedType(alarm.getRecognizedType())
-                .weather(alarm.getWeather())
-                .createdAt(alarm.getCreatedAt())
-                .build());
     }
 
     private void incrementAndBroadcast(String key, String field, Integer ttl, TimeUnit timeUnit, String scope) {

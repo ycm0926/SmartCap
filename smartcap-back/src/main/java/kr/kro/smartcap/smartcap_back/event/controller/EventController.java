@@ -4,6 +4,8 @@ import kr.kro.smartcap.smartcap_back.accident.entity.AccidentHistory;
 import kr.kro.smartcap.smartcap_back.accident.repository.AccidentHistoryRepository;
 import kr.kro.smartcap.smartcap_back.event.dto.*;
 
+import kr.kro.smartcap.smartcap_back.event.dto.stat.StatResponseDto;
+import kr.kro.smartcap.smartcap_back.event.service.EventService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.MediaType;
@@ -39,48 +41,16 @@ public class EventController {
     @Autowired
     private AccidentHistoryRepository accidentHistoryRepository;
 
+    @Autowired
+    private EventService eventService;
 
     /**
      * 대시보드용 데이터를 제공하는 엔드포인트
      */
+
     @GetMapping("/dashboard")
-    public EventSummaryResponse getDashboardData() {
-        // Redis에서 알람 데이터 리스트 가져오기
-        List<Map<String, Object>> alarmsList = (List<Map<String, Object>>) redisTemplate.opsForValue().get("alarms_stats");
-
-        if (alarmsList == null) {
-            alarmsList = new ArrayList<>();
-        }
-
-        // 최근 알람 5개 추출 (시간순 정렬 후)
-        List<AlarmDTO> recentAlarms = convertToAlarmDTOs(alarmsList).stream()
-                .sorted((a1, a2) -> a2.getCreated_at().compareTo(a1.getCreated_at()))
-                .limit(5)
-                .collect(Collectors.toList());
-
-        // 인식 타입별 통계 집계
-        Map<String, Integer> monthlyDangerRanking = calculateRecognizedTypeStats(alarmsList);
-
-        // 시간별 통계 계산
-        Map<String, Integer> dailyAlarmCounts = calculateDailyStats(alarmsList);
-        Map<String, Integer> weeklyAlarmCounts = calculateWeeklyStats(alarmsList);
-        Map<String, Integer> monthlyAlarmCounts = calculateMonthlyStats(alarmsList);
-
-        // 알람 타입별 통계
-        Map<String, Integer> alarmTypeCounts = calculateAlarmTypeStats(alarmsList);
-
-        // 알람 타입 및 인식 타입별 교차 통계
-        Map<String, Map<String, Integer>> accidentTypeTrend = calculateCrossStats(alarmsList);
-
-        return EventSummaryResponse.builder()
-                .recentAlarms(recentAlarms)
-                .monthlyDangerRanking(monthlyDangerRanking)
-                .dailyAlarmCounts(dailyAlarmCounts)
-                .weeklyAlarmCounts(weeklyAlarmCounts)
-                .monthlyAlarmCounts(monthlyAlarmCounts)
-                .alarmTypeCounts(alarmTypeCounts)
-                .accidentTypeTrend(accidentTypeTrend)
-                .build();
+    public StatResponseDto getDashboardData() {
+        return eventService.getDashboardSummary();
     }
 
     /**
@@ -243,61 +213,5 @@ public class EventController {
 
             return accident;
         }).collect(Collectors.toList());
-    }
-
-    // 이하 통계 계산 메소드들 (예시)
-    private Map<String, Integer> calculateRecognizedTypeStats(List<Map<String, Object>> alarmsList) {
-        Map<String, Integer> stats = new HashMap<>();
-
-        for (Map<String, Object> alarm : alarmsList) {
-            String type = (String) alarm.get("recognizedType");
-            stats.put(type, stats.getOrDefault(type, 0) + 1);
-        }
-
-        return stats;
-    }
-
-    private Map<String, Integer> calculateDailyStats(List<Map<String, Object>> alarmsList) {
-        // 일별 통계 계산 로직
-        return new HashMap<>(); // 실제 구현 필요
-    }
-
-    private Map<String, Integer> calculateWeeklyStats(List<Map<String, Object>> alarmsList) {
-        // 주별 통계 계산 로직
-        return new HashMap<>(); // 실제 구현 필요
-    }
-
-    private Map<String, Integer> calculateMonthlyStats(List<Map<String, Object>> alarmsList) {
-        // 월별 통계 계산 로직
-        return new HashMap<>(); // 실제 구현 필요
-    }
-
-    private Map<String, Integer> calculateAlarmTypeStats(List<Map<String, Object>> alarmsList) {
-        Map<String, Integer> stats = new HashMap<>();
-
-        for (Map<String, Object> alarm : alarmsList) {
-            String type = (String) alarm.get("alarmType");
-            stats.put(type, stats.getOrDefault(type, 0) + 1);
-        }
-
-        return stats;
-    }
-
-    private Map<String, Map<String, Integer>> calculateCrossStats(List<Map<String, Object>> alarmsList) {
-        Map<String, Map<String, Integer>> crossStats = new HashMap<>();
-
-        for (Map<String, Object> alarm : alarmsList) {
-            String alarmType = (String) alarm.get("alarmType");
-            String recognizedType = (String) alarm.get("recognizedType");
-
-            if (!crossStats.containsKey(alarmType)) {
-                crossStats.put(alarmType, new HashMap<>());
-            }
-
-            Map<String, Integer> innerMap = crossStats.get(alarmType);
-            innerMap.put(recognizedType, innerMap.getOrDefault(recognizedType, 0) + 1);
-        }
-
-        return crossStats;
     }
 }
