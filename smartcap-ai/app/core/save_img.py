@@ -39,9 +39,7 @@ def save_image(folder: str, frame: np.ndarray, count: int):
         if not isinstance(frame, np.ndarray):
             logging.error(f"❌ frame 타입이 이상함: {type(frame)}")
             return
-
-        logging.info(f"saved frame shape: {getattr(frame, 'shape', 'no shape')}, dtype: {getattr(frame, 'dtype', 'no dtype')}")
-
+        
         success = cv2.imwrite(file_path, frame)
 
         if not success:
