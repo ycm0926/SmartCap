@@ -36,4 +36,14 @@ public class RedisConfig {
         template.setValueSerializer(RedisSerializer.byteArray());
         return template;
     }
+
+    @Bean
+    public RedisTemplate<String, Object> objectRedisTemplate(RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, Object> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setValueSerializer(new org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer());
+        return template;
+    }
+
 }
