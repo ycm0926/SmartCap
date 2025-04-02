@@ -1,4 +1,3 @@
-# app/api/handlers/video_handler.py
 import cv2
 import base64
 import numpy as np
@@ -6,6 +5,8 @@ import asyncio
 import logging
 import time
 from collections import deque
+
+import httpx  # 비동기 HTTP 호출을 위해 사용
 
 from starlette.websockets import WebSocketState
 
@@ -17,40 +18,22 @@ from app.api import state
 
 logger = logging.getLogger(__name__)
 
-async def process_video_frames(device_id: str):
-    queue = state.frame_queues[device_id]
-    try:
-        while True:
-            if queue:
-                frame = queue.popleft()
-                try:
-                    result = run_model(frame)
-                    logger.info(f"[Device {device_id}] run_model result: {result}")
-                    if result in [1, 2]:
-                        state.SAVE_IMAGES_TO_REDIS = True
-
-                    gps_ws = state.clients.get("2")
-                    if gps_ws and gps_ws.application_state == WebSocketState.CONNECTED:
-                        try:
-                            await gps_ws.send_text(str(result))
-                            logger.info(f"[Device {device_id}] Sent result {result} to GPS device")
-                        except Exception as e:
-                            logger.error(f"[Device {device_id}] Failed to send to GPS device: {e}")
-                except Exception as e:
-                    logger.error(f"[Device {device_id}] run_model error: {e}")
-            else:
-                await asyncio.sleep(0.05)
-    except asyncio.CancelledError:
-        logger.info(f"[Device {device_id}] process_video_frames cancelled")
-    except Exception as e:
-        logger.error(f"[Device {device_id}] Unexpected error in process_video_frames: {e}")
+# 스프링 서버로 사고 정보를 전송하는 함수 (비동기)
+async def notify_accident():
+    url = "http://localhost:8080/api/accident/1/notify"
+    payload = {
+        "constructionSitesId": 1,
+        "weather": "Sunny",
+        "accidentType": "Accident Detected",
+        "gps": "POINT(127.04 37.502)"
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=payload)
+        logger.info(f"Accident notify response: {response.status_code} {response.text}")
 
 async def handle_video_device(websocket, device_id: str):
     state.clients[device_id] = websocket
     logger.info(f"[Device {device_id}] Video device connected")
-    state.frame_queues[device_id] = deque()  # collections.deque() 사용
-    state.processing_tasks[device_id] = asyncio.create_task(process_video_frames(device_id))
-    
     folder = create_image_folder()
     logger.info("create img")
     img_count = 1
@@ -61,6 +44,7 @@ async def handle_video_device(websocket, device_id: str):
         while True:
             data = await websocket.receive()
             frame = None
+
             if "bytes" in data:
                 frame_data = np.frombuffer(data["bytes"], dtype=np.uint8)
                 frame = cv2.imdecode(frame_data, cv2.IMREAD_COLOR)
@@ -78,28 +62,35 @@ async def handle_video_device(websocket, device_id: str):
                     logger.warning(f"[Device {device_id}] Unexpected text data received")
             
             if frame is not None:
-                try:
-                    rotated_frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                # 90도 좌측(반시계방향) 회전
+                rotated_frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                # 동기적으로 run_model 호출 (실행이 끝나야 다음 단계 진행)
+                result = run_model(rotated_frame)
+                logger.info(f"[Device {device_id}] run_model result: {result}")
+                
+                # run_model 결과에 따라 이미지 저장 및 추가 작업
+                if result in [1, 2, 3]:
+                    # 로컬에 이미지 저장
                     save_image(folder, rotated_frame, img_count)
                     logger.info(f"[Device {device_id}] Image saved locally, count: {img_count}")
-                    img_count += 1
-                    last_frame_time = asyncio.get_event_loop().time()
-                    queue = state.frame_queues[device_id]
-                    if len(queue) >= state.MAX_QUEUE_SIZE:
-                        queue.popleft()
-                    queue.append(frame)
                     
-                    if state.SAVE_IMAGES_TO_REDIS:
-                        ret, buf = cv2.imencode('.jpg', frame)
-                        if ret:
-                            image_bytes = buf.tobytes()
-                            key = f"device:1:image:{int(time.time() * 1000)}_{img_count}"
-                            redis_client.set(key, image_bytes, ex=180)
-                            logger.info(f"[Device {device_id}] Image saved to Redis with key {key}")
-                        state.SAVE_IMAGES_TO_REDIS = False  # 저장 후 플래그 초기화
-
-                except Exception as e:
-                    logger.error(f"[Device {device_id}] Error processing image: {e}")
+                    # Redis 저장: result에 상관없이 저장할 경우
+                    ret, buf = cv2.imencode('.jpg', rotated_frame)
+                    if ret:
+                        image_bytes = buf.tobytes()
+                        key = f"device:{device_id}:image:{int(time.time() * 1000)}_{img_count}"
+                        redis_client.set(key, image_bytes, ex=180)
+                        logger.info(f"[Device {device_id}] Image saved to Redis with key {key}")
+                    
+                    # 사고 발생인 경우 (result == 3) 스프링에 사고 알림 전송
+                    if result == 3:
+                        await notify_accident()
+                    
+                    img_count += 1
+                else:
+                    logger.info(f"[Device {device_id}] run_model result {result} does not trigger saving.")
+                
+                last_frame_time = asyncio.get_event_loop().time()
             else:
                 logger.warning(f"[Device {device_id}] No valid frame data received")
     except asyncio.CancelledError:
@@ -108,10 +99,6 @@ async def handle_video_device(websocket, device_id: str):
         logger.error(f"[Device {device_id}] Video loop exception: {e}")
     finally:
         state.clients.pop(device_id, None)
-        state.frame_queues.pop(device_id, None)
-        task = state.processing_tasks.pop(device_id, None)
-        if task:
-            task.cancel()
         duration = last_frame_time - start_time
         create_video_from_images(folder, duration)
         if websocket.application_state != WebSocketState.DISCONNECTED:
