@@ -9,5 +9,5 @@ public class AccidentHistoryDto {
     private Long constructionSitesId;
     private String gps;      // 위치 정보 (문자열)
     private String accidentType;  // 사고 유형
-    private String weather = "맑음";
+//    private String weather = "맑음";
 }
