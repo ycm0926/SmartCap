@@ -3,6 +3,7 @@ from app.services.risk_detection.materials import detect_material_risks
 from app.config import RiskSeverity, RiskTypeOffset
 from app.services.pipelines.harzard_model_runner import run_inference
 from app.services.risk_detection.fall_zone import detect_fall_zone_risks
+from app.services.risk_detection.vehicles import detect_vehicle_risks
 import concurrent.futures
 
 
@@ -59,18 +60,23 @@ def run_risk_detection_pipeline(frame, frame_count):
         )
         
         # 자동차 위험 감지
+        vehicle_risk_future = detection_executor.submit(
+            detect_vehicle_risks,
+            tracked_objects.get('vehicle', []), 
+            frame_count
+        )
         
         # 결과 받기
         material_risks = material_risk_future.result()
         fall_zone_risks = fall_zone_risk_future.result()
-        # vehicle_risks
+        vehicle_risks = vehicle_risk_future.result()
     
     # 각 위험 유형별 단계 계산 (RiskTypeOffset + RiskSeverity)
     material_stage = RiskTypeOffset.MATERIAL + material_risks if material_risks > RiskSeverity.SAFE else RiskSeverity.SAFE
     fall_zone_stage = RiskTypeOffset.FALL_ZONE + fall_zone_risks if fall_zone_risks > RiskSeverity.SAFE else RiskSeverity.SAFE
-    # vehicle_stage = RiskTypeOffset.VEHICLE + vehicle_risks if vehicle_risks > RiskSeverity.SAFE else RiskSeverity.SAFE
+    vehicle_stage = RiskTypeOffset.VEHICLE + vehicle_risks if vehicle_risks > RiskSeverity.SAFE else RiskSeverity.SAFE
         
     # 모든 위험 수준 중 최고값 찾기
-    max_risk_severity = max(material_stage, fall_zone_stage, RiskSeverity.SAFE)
+    max_risk_severity = max(material_stage, fall_zone_stage, vehicle_stage, RiskSeverity.SAFE)
     
     return max_risk_severity
