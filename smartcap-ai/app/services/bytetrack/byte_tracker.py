@@ -164,8 +164,8 @@ class STrack(BaseTrack):
         """
         self.frame_id = frame_id
         self.tracklet_len += 1
-
         new_tlwh = new_track.tlwh
+
         self.mean, self.covariance = self.kalman_filter.update(
             self.mean, self.covariance, self.tlwh_to_xyah(new_tlwh))
         self.state = TrackState.Tracked
@@ -183,6 +183,8 @@ class STrack(BaseTrack):
                                             cv2.CHAIN_APPROX_SIMPLE)
                 if contours:
                     self._rotated_box = cv2.minAreaRect(contours[0])
+
+        return True
 
 
     @property
@@ -385,8 +387,15 @@ class BYTETracker(object):
 
             # 현재 추적 중인 트랙인 경우 update 호출하여 칼만 필터 상태 업데이트
             if track.state == TrackState.Tracked:
-                track.update(detections[idet], self.frame_id)
-                activated_starcks.append(track)
+                update_success = track.update(detections[idet], self.frame_id)
+                if update_success is not False:  # 명시적으로 False가 아닌 경우만 활성화된 트랙에 추가
+                    activated_starcks.append(track)
+                else:  # 업데이트 실패 시 lost_stracks에 추가
+                    track.mark_lost()  # 명시적으로 Lost 상태로 표시
+                    lost_stracks.append(track)
+
+                # track.update(detections[idet], self.frame_id)
+                # activated_starcks.append(track)
             
             # 이전에 잃어버린 트랙인 경우 re_activate 호출하여 다시 활성화
             else:
@@ -413,6 +422,7 @@ class BYTETracker(object):
 
         # 첫 번째 매칭에서 매칭되지 않은 추적 중인 트랙만 선택
         r_tracked_stracks = [strack_pool[i] for i in u_track if strack_pool[i].state == TrackState.Tracked]
+        # r_tracked_stracks = [strack_pool[i] for i in u_track]
 
         # 선택된 트랙과 저신뢰도 디텍션 간의 IoU 기반 비용 행렬 계산
         dists = matching.iou_distance(r_tracked_stracks, detections_second)
@@ -426,9 +436,16 @@ class BYTETracker(object):
             det = detections_second[idet]
 
             if track.state == TrackState.Tracked:
+                update_success = track.update(detections_second[idet], self.frame_id)
+                if update_success is not False:  # 명시적으로 False가 아닌 경우만 활성화된 트랙에 추가
+                    activated_starcks.append(track)
+                else:  # 업데이트 실패 시 lost_stracks에 추가
+                    track.mark_lost()  # 명시적으로 Lost 상태로 표시
+                    lost_stracks.append(track)
+
                 # 이미 추적 중인 트랙 업데이트
-                track.update(det, self.frame_id)
-                activated_starcks.append(track)
+                # track.update(det, self.frame_id)
+                # activated_starcks.append(track)
             else:
                 # Lost 상태 트랙 재활성화
                 track.re_activate(det, self.frame_id, new_id=False)
