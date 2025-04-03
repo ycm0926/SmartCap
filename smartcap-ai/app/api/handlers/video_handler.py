@@ -33,15 +33,15 @@ async def notify_accident(accident_type: int):
         logger.info(f"Accident notify response: {response.status_code} {response.text}")
 
 # 스프링 서버로 1, 2차 알림을 전송하는 함수 (비동기)
-# async def notify_alert(notice_type: int):
-#     url = "http://localhost:8080/api/alert/23/notify" # 23아이디 고정
-#     payload = {
-#         "constructionSitesId": 1,
-#         "accidentType": alert_type  # 전달받은 정수값 사용
-#     }
-#     async with httpx.AsyncClient() as client:
-#         response = await client.post(url, json=payload)
-#         logger.info(f"Accident notify response: {response.status_code} {response.text}")
+async def notify_alarm(alarm_type: int):
+    url = "http://localhost:8080/api/alarm/23/notify" # 23아이디 고정
+    payload = {
+        "constructionSitesId": 1,
+        "accidentType": alarm_type  # 전달받은 정수값 사용
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=payload)
+        logger.info(f"alarm notify response: {response.status_code} {response.text}")
 
 async def handle_video_device(websocket, device_id: str):
     device_id = 23
@@ -96,8 +96,8 @@ async def handle_video_device(websocket, device_id: str):
                         logger.info(f"[Device 23] Image saved to Redis with key {key}")
                     
                     # 1차/2차 알림의 경우 스프링에 위험 알림 전송
-                    # if result == 1 or result == 2:
-                    #     await notify_alert(result)
+                    if result == 1 or result == 2:
+                        await notify_alarm(result)
                     
                     # 사고 발생인 경우 스프링에 사고 알림 전송
                     if result == 3:
