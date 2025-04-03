@@ -13,7 +13,6 @@ import java.util.Map;
 public class AlarmResponseDto {
     private Long alarmId;
     private Long constructionSitesId;
-    private Integer deviceId;
     private Map<String, Object> gps;
     private String alarmType;
     private String recognizedType;
