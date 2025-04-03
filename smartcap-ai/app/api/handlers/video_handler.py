@@ -45,7 +45,7 @@ async def notify_alarm(device_id: int, alarm_type: int):
     url = f"http://{BACKEND_SERVER_HOST}/api/alarm/{device_id}/notify"  # device_id 사용
     payload = {
         "constructionSitesId": 1,
-        "accidentType": alarm_type
+        "alarmType": alarm_type
     }
     try:
         timeout = httpx.Timeout(0.1)
