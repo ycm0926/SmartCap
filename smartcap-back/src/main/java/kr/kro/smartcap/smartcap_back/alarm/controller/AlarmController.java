@@ -15,19 +15,17 @@ import org.springframework.web.bind.annotation.*;
 public class AlarmController {
 
     private final AlarmProcessingService alarmProcessingService;
-    private static final Logger logger = LoggerFactory.getLogger(AlarmController.class);
 
-    @PostMapping("/notify")
-    public ResponseEntity<?> notifyAlarm(@RequestBody AlarmHistoryDto dto) {
+    @PostMapping("/{deviceId}/notify")
+    public ResponseEntity<?> notifyAlarm(
+            @PathVariable int deviceId,
+            @RequestBody AlarmHistoryDto dto
+    ) {
         try {
-            logger.info("Received alarm notification for device ID: {}, type: {}",
-                    dto.getDeviceId(), dto.getAlarmType());
+            alarmProcessingService.processAlarm(deviceId, dto);
 
-            AlarmHistory alarm = alarmProcessingService.processAlarm(dto);
-
-            return ResponseEntity.ok("Alarm processed successfully with ID: " + alarm.getAlarmId());
+            return ResponseEntity.ok("Accident data saved successfully");
         } catch (Exception e) {
-            logger.error("Failed to process alarm: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body("Failed to process alarm: " + e.getMessage());
         }
     }
