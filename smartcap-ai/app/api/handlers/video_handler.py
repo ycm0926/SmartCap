@@ -34,14 +34,14 @@ async def notify_accident(accident_type: int):
 
 # 스프링 서버로 1, 2차 알림을 전송하는 함수 (비동기)
 async def notify_alarm(alarm_type: int):
-    url = "http://localhost:8080/api/alarm/23/notify" # 23아이디 고정
+    url = "http://localhost:8080/api/alarm/23/notify"  # 23아이디 고정
     payload = {
         "constructionSitesId": 1,
         "accidentType": alarm_type  # 전달받은 정수값 사용
     }
     async with httpx.AsyncClient() as client:
         response = await client.post(url, json=payload)
-        logger.info(f"alarm notify response: {response.status_code} {response.text}")
+        logger.info(f"Alarm notify response: {response.status_code} {response.text}")
 
 async def handle_video_device(websocket, device_id: str):
     device_id = 23
@@ -82,31 +82,27 @@ async def handle_video_device(websocket, device_id: str):
                 result = run_model(processed_frame, 0)
                 logger.info(f"[Device {device_id}] run_model result: {result}")
                 
-                if result in [1, 2, 3]:
-                    # 로컬에 이미지 저장 (보정 및 회전된 이미지)
-                    save_image(folder, processed_frame, img_count)
-                    logger.info(f"[Device {device_id}] Image saved locally, count: {img_count}")
+                # 이미지 저장 및 Redis 저장
+                save_image(folder, processed_frame, img_count)
+                logger.info(f"[Device {device_id}] Image saved locally, count: {img_count}")
                     
-                    # Redis 저장 (Device 23로 고정)
-                    ret, buf = cv2.imencode('.jpg', processed_frame)
-                    if ret:
-                        image_bytes = buf.tobytes()
-                        key = f"device 23:image:{int(time.time() * 1000)}_{img_count}"
-                        redis_client.set(key, image_bytes, ex=180)
-                        logger.info(f"[Device 23] Image saved to Redis with key {key}")
+                ret, buf = cv2.imencode('.jpg', processed_frame)
+                if ret:
+                    image_bytes = buf.tobytes()
+                    key = f"device 23:image:{int(time.time() * 1000)}_{img_count}"
+                    redis_client.set(key, image_bytes, ex=180)
+                    logger.info(f"[Device 23] Image saved to Redis with key {key}")
                     
-                    # 1차/2차 알림의 경우 스프링에 위험 알림 전송
-                    if result == 1 or result == 2:
-                        await notify_alarm(result)
-                    
-                    # 사고 발생인 경우 스프링에 사고 알림 전송
-                    if result == 3:
+                # result가 0이 아니면 notify 함수 호출
+                if result != 0:
+                    if result % 3 == 0: # 3의 배수면 사고 알림
                         await notify_accident(result)
-                    
-                    img_count += 1
+                    else: # 그 외는 1차, 2차 알림
+                        await notify_alarm(result)
                 else:
-                    logger.info(f"[Device {device_id}] run_model result {result} does not trigger saving.")
-                
+                    logger.info(f"[Device {device_id}] run_model result is 0, no notification sent")
+                    
+                img_count += 1
                 last_frame_time = asyncio.get_event_loop().time()
             else:
                 logger.warning(f"[Device {device_id}] No valid frame data received")
