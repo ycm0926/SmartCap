@@ -41,7 +41,7 @@ public class AlarmProcessingService {
     public void processAlarm(int deviceId, AlarmHistoryDto dto) {
         AlarmHistoryRedisDto alarmHistoryRedisDto = new AlarmHistoryRedisDto();
 
-        CategoryInfo info = AlarmCategoryMapper.map(dto.getAccidentType());
+        CategoryInfo info = AlarmCategoryMapper.map(dto.getAlarmType());
 
         alarmHistoryRedisDto.setAlarmType(info.getCode());
         alarmHistoryRedisDto.setRecognizedType(info.getCategory());
