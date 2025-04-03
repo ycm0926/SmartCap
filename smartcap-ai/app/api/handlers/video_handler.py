@@ -92,12 +92,9 @@ async def handle_video_device(websocket, device_id: int):
                 processed_frame = await asyncio.to_thread(preprocess_frame, frame)
                 # 동기적으로 run_model 호출 (실행 완료 후 다음 단계 진행)
                 result = await asyncio.to_thread(run_model, processed_frame)
-                logger.info(f"[Device {device_id}] run_model result: {result}")
                 
                 # 이미지 저장 및 Redis 저장
                 await asyncio.to_thread(save_image, folder, processed_frame, img_count)
-                
-                logger.info(f"[Device {device_id}] Image saved locally, count: {img_count}")
                     
                 ret, buf = cv2.imencode('.jpg', processed_frame)
                 if ret:
