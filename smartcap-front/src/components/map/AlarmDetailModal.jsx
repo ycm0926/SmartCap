@@ -1,19 +1,35 @@
 // src/components/map/AlarmDetailModal.jsx
 import React from 'react';
-import { HardHat, MapPin, Calendar, Cloud, Info, Building } from 'lucide-react';
+import { HardHat, MapPin, Calendar, Cloud, Info, Building, Sun, CloudRain, CloudSnow, CloudFog, CloudLightning, CloudHail, Wind } from 'lucide-react';
 
 const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal, getAlarmTypeText, getRecognizedTypeText }) => {
   if (!showModal || !selectedAlarm) return null;
 
   // 날씨에 따른 아이콘 클래스 반환
-  const getWeatherIconClass = (weather) => {
+  const getWeatherIcon = (weather) => {
     switch(weather) {
-      case '맑음': return 'weather-clear';
-      case '흐림': return 'weather-cloudy';
-      case '비': return 'weather-rain';
-      case '눈': return 'weather-snow';
-      case '안개': return 'weather-fog';
-      default: return 'weather-default';
+      case '맑음': return <Sun size={20} color="#FFD700" />;
+      case '흐림': return <Cloud size={20} color="#CCCCCC" />;
+      case '비': return <CloudRain size={20} color="#0099FF" />;
+      case '눈': return <CloudSnow size={20} color="#FFFFFF" />;
+      case '안개': return <CloudFog size={20} color="#AAAAAA" />;
+      case '폭우': return <CloudRain size={20} color="#0066CC" />;
+      case '폭설': return <CloudSnow size={20} color="#EEEEEE" />;
+      case '천둥번개': return <CloudLightning size={20} color="#FFD700" />;
+      case '우박': return <CloudHail size={20} color="#AADDFF" />;
+      case '황사': return <Wind size={20} color="#D2B48C" />;
+      default: return <Cloud size={20} />;
+    }
+  };
+
+  // 알람 타입에 따른 배지 색상 반환
+  const getAlarmBadgeColor = (alarmType) => {
+    switch(alarmType) {
+      case 'Danger': return '#E76A1F'; // 다홍색
+      case 'Warning': return '#FFC107'; // 노란색
+      case 'Accident':
+      case 'Falling': return '#ff0000'; // 빨간색
+      default: return '#ff0000'; // 기본 주황색
     }
   };
 
@@ -21,10 +37,10 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
     <div className="modal-overlay" onClick={closeModal}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={closeModal}>&times;</button>
-        
+
         <div className="modal-header">
           <h2>{getAlarmTypeText(selectedAlarm.alarm_type)} 상세 정보</h2>
-          <span className="alarm-type-badge">
+          <span className="alarm-type-badge" style={{ backgroundColor: getAlarmBadgeColor(selectedAlarm.alarm_type) }}>
             {selectedAlarm.alarm_type}
           </span>
         </div>
@@ -47,13 +63,15 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
           <h3>알람 정보</h3>
           
           <div className="detail-section">
+            {/* 
             <div className="detail-item">
               <span className="detail-icon"><Info size={16} /></span>
               <span className="detail-label">알람 ID:</span>
               <span className="detail-value">{selectedAlarm.alarm_id}</span>
             </div>
+            */}
             
-            <div className="detail-item">
+             <div className="detail-item">
               <span className="detail-icon"><Info size={16} /></span>
               <span className="detail-label">알람 유형:</span>
               <span className="detail-value">{getAlarmTypeText(selectedAlarm.alarm_type)}</span>
@@ -106,8 +124,8 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
               <span className="detail-icon"><Cloud size={16} /></span>
               <span className="detail-label">날씨:</span>
               <span className="detail-value">
-                <span className={`weather-icon ${getWeatherIconClass(selectedAlarm.weather)}`}></span>
-                {selectedAlarm.weather || 'N/A'}
+                {getWeatherIcon(selectedAlarm.weather)}
+                <span style={{ marginLeft: '8px' }}>{selectedAlarm.weather || 'N/A'}</span>
               </span>
             </div>
           </div>
@@ -120,7 +138,7 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
             selectedAlarm.accident_id) && (
             <button className="btn-primary">긴급 구조 요청</button>
           )}
-          <button className="btn-secondary">처리 완료 표시</button>
+          {/* <button className="btn-secondary">처리 완료 표시</button> */}
         </div>
 
         {/* 스타일 추가 */}
@@ -161,6 +179,7 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
             font-size: 24px;
             cursor: pointer;
             z-index: 2;
+            margin-right: 10px; /* 버튼과 배지 간격 추가 */
           }
           
           .modal-header {
@@ -172,12 +191,13 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
           }
           
+          
           .alarm-type-badge {
-            background-color: #f44336;
             padding: 4px 8px;
             border-radius: 4px;
             font-size: 14px;
             font-weight: bold;
+            margin-right: 30px; /* 오른쪽 여백 추가 */
           }
           
           .incident-video {
