@@ -1,5 +1,5 @@
 import numpy as np
-from app.config import RiskLevel
+from app.config import RiskSeverity
 import math
 
 # 계단 위험 감지 설정
@@ -25,7 +25,7 @@ class FallZoneTracker:
     def __init__(self, tracker_id):
         # 트래커 식별 및 상태 관련 변수
         self.tracker_id = tracker_id
-        self.status = RiskLevel.SAFE
+        self.status = RiskSeverity.SAFE
         
         # 방향 탐지 관련 변수
         self.is_descending = None  # True: 하행, False: 상행, None: 미정
@@ -95,7 +95,7 @@ class FallZoneTracker:
             self.is_descending = False
         
         # 하행 계단이고 아직 1차 알림이 아닌 경우, 밑면 꼭짓점 히스토리에 추가
-        if self.is_descending is True and self.status == RiskLevel.SAFE and trapezoid_pts[2] is not None and trapezoid_pts[3] is not None:
+        if self.is_descending is True and self.status == RiskSeverity.SAFE and trapezoid_pts[2] is not None and trapezoid_pts[3] is not None:
             self.last_bottom_points = (trapezoid_pts[2].copy(), trapezoid_pts[3].copy())  # bottom_right, bottom_left
             
             
@@ -108,14 +108,14 @@ class FallZoneTracker:
         """
         # 상행 계단이면 안전 상태 유지
         if self.is_descending is False:
-            self.status = RiskLevel.SAFE
+            self.status = RiskSeverity.SAFE
             return
             
         # 하행 계단인 경우 처리
         if self.is_descending is True:
             # 1차 알림: 하행 계단으로 FIRST_ALERT_SCORE_THRESHOLD점 이상 인식된 경우
-            if self.status == RiskLevel.SAFE and self.descending_score >= FIRST_ALERT_SCORE_THRESHOLD:
-                self.status = RiskLevel.WARNING
+            if self.status == RiskSeverity.SAFE and self.descending_score >= FIRST_ALERT_SCORE_THRESHOLD:
+                self.status = RiskSeverity.WARNING
 
                 # 1차 알림 시점의 밑면 꼭짓점 위치 저장
                 if trapezoid_pts is not None:
@@ -126,7 +126,7 @@ class FallZoneTracker:
                 return
                            
             # 1차 알림 이후 위험 상태 업데이트
-            elif self.status == RiskLevel.WARNING and self.first_alert_bottom_points is not None:
+            elif self.status == RiskSeverity.WARNING and self.first_alert_bottom_points is not None:
                 # 현재 밑면 꼭짓점
                 current_bottom_right = trapezoid_pts[2]
                 current_bottom_left = trapezoid_pts[3]
@@ -143,7 +143,7 @@ class FallZoneTracker:
                 if (current_bottom_left[1] >= threshold_y or current_bottom_right[1] >= threshold_y or
                     first_bottom_left[1] - current_bottom_left[1] >= BOTTOM_POINT_DISTANCE or
                     first_bottom_right[1] - current_bottom_right[1] >= BOTTOM_POINT_DISTANCE):
-                    self.status = RiskLevel.DANGER
+                    self.status = RiskSeverity.DANGER
     
     
     def handle_missing_detection(self):
@@ -156,7 +156,7 @@ class FallZoneTracker:
         if self.missing_frame_count >= MAX_MISSING_FRAMES:
             self.is_descending = None
             self.descending_score = 0
-            self.status = RiskLevel.SAFE
+            self.status = RiskSeverity.SAFE
             self.missing_frame_count = 0
         
         
@@ -301,9 +301,9 @@ def detect_fall_zone_risks(tracked_stairs, frame_count):
         frame_count: 현재 프레임 번호
         
     Returns:
-        RiskLevel: 현재 계단 위험 수준
+        RiskSeverity: 현재 계단 위험 수준
     """
-    risk_level = RiskLevel.SAFE
+    risk_level = RiskSeverity.SAFE
     current_track_ids = set()
 
     

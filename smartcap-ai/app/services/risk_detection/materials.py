@@ -1,12 +1,12 @@
 from collections import deque
 from typing import Dict, List, Tuple, Any
-from app.config import RiskLevel
+from app.config import RiskSeverity
 
 # 자재 위험 감지 설정
 HISTORY_SIZE = 30  # 추적할 최대 프레임 수
 MIN_FRAMES_FOR_DETECTION = 5  # 접근 감지를 위한 최소 프레임 수
-FIRST_ALERT_THRESHOLD = 1.1  # 1차 알림 임계값: 10% 이상 크기 증가
-SECOND_ALERT_THRESHOLD = 1.35  # 2차 알림 임계값: 35% 이상 크기 증가
+FIRST_ALERT_THRESHOLD = 1.15  # 1차 알림 임계값: 15% 이상 크기 증가
+SECOND_ALERT_THRESHOLD = 1.30  # 2차 알림 임계값: 30% 이상 크기 증가
 MIN_DETECTION_CONFIDENCE = 0.7  # 자재 크기를 신뢰할 최소 신뢰도 점수
 CONSECUTIVE_FRAMES_REQUIRED = 3  # 위험 상태 변경을 위한 연속 프레임 수
 
@@ -18,14 +18,14 @@ class MaterialTracker:
         self.size_history = deque(maxlen=HISTORY_SIZE) # 프레임별 객체 크기(작은 변) 기록 리스트 - (frame_count, shorter_side) 형태
         self.detection_history = deque(maxlen=HISTORY_SIZE) # 프레임별 객체 감지 여부 리스트 - (frame_count, is_detected) 형태
         self.last_seen_frame = 0 # 마지막으로 객체가 감지된 프레임 번호
-        self.status = RiskLevel.SAFE # 현재 알림 상태 (SAFE, WARNING, DANGER)
+        self.status = RiskSeverity.SAFE # 현재 알림 상태 (SAFE, WARNING, DANGER)
 
         self.initial_reference_size = None # 사분위수 범위로 이상치를 제거한 초기 객체의 크기
         self.first_alert_reference_size = None  # 1차 알림 시 기준 크기
 
         self.warning_frame_count = 0  # 1차 알림 임계값을 초과한 연속된 프레임 수
         self.danger_frame_count = 0   # 2차 알림 임계값을 초과한 연속된 프레임 수
-        self.consecutive_misses = 0  # 연속으로 감지되지 않은 프레임 수 (RiskLevel 초기화)
+        self.consecutive_misses = 0  # 연속으로 감지되지 않은 프레임 수 (RiskSeverity 초기화)
         
 
     def update(self, frame_count, shorter_side):
@@ -45,7 +45,7 @@ class MaterialTracker:
             if len(self.size_history) == MIN_FRAMES_FOR_DETECTION:
                 # 안정화 기간이 끝나면 초기 기준 크기 설정
                 self._establish_baseline_size()
-            return self.status
+            return RiskSeverity.SAFE
         
         # 위험 상태 확인
         return self._check_risk_status()
@@ -86,10 +86,8 @@ class MaterialTracker:
         
         # 일정 이상 연속 감지 실패 시 추적 초기화 (사용자가 뒤돌아본 상태)
         if self.consecutive_misses >= 10:  # 약 1-2초 (초당 6-8프레임 기준)
-            self.status = RiskLevel.SAFE
-            self.first_alert_reference_size = None
+            self.status = RiskSeverity.SAFE
             
-        return None
     
 
     def _check_risk_status(self):
@@ -104,7 +102,7 @@ class MaterialTracker:
             current_approach_ratio = latest_size / self.initial_reference_size
             
             # 현재 상태에 따른 위험 판단
-            if self.status == RiskLevel.SAFE:
+            if self.status == RiskSeverity.SAFE:
                 # 1차 알림 임계값 확인
                 if current_approach_ratio >= FIRST_ALERT_THRESHOLD:
                     # 연속 프레임 카운터 증가
@@ -112,31 +110,31 @@ class MaterialTracker:
 
                     # 연속 3프레임 이상 임계값 초과 시 상태 변경
                     if self.warning_frame_count >= CONSECUTIVE_FRAMES_REQUIRED:
-                        self.status = RiskLevel.WARNING
+                        self.status = RiskSeverity.WARNING
                         self.first_alert_reference_size = latest_size  # 1차 알림 시점의 크기 저장
                         # 카운터 초기화
                         self.warning_frame_count = 0
-                        return RiskLevel.WARNING
+                        return RiskSeverity.WARNING
                 else:
                     # 임계값 미만이면 연속 카운터 초기화
                     self.warning_frame_count = 0
                     
-            elif self.status == RiskLevel.WARNING:
+            elif self.status == RiskSeverity.WARNING:
                 # 1차 알림 상태일 때 2차 알림 임계값 확인
                 if self.first_alert_reference_size:
                     second_alert_ratio = latest_size / self.first_alert_reference_size
                     
-                    # 1차 알림 발송 이후 추가로 25% 이상 더 접근 or 초기 대비 총 35% 이상 접근한 경우 2차 알림
-                    if second_alert_ratio >= 1.25 or current_approach_ratio >= SECOND_ALERT_THRESHOLD:
+                    # 1차 알림 발송 이후 추가로 15% 이상 더 접근 or 초기 대비 총 30% 이상 접근한 경우 2차 알림
+                    if second_alert_ratio >= 1.15 or current_approach_ratio >= SECOND_ALERT_THRESHOLD:
                         # 연속 프레임 카운터 증가
                         self.danger_frame_count += 1
                         
                         # 연속 3프레임 이상 임계값 초과 시 상태 변경
                         if self.danger_frame_count >= CONSECUTIVE_FRAMES_REQUIRED:
-                            self.status = RiskLevel.DANGER
+                            self.status = RiskSeverity.DANGER
                             # 카운터 초기화
                             self.danger_frame_count = 0
-                            return RiskLevel.DANGER
+                            return RiskSeverity.DANGER
                     else:
                         # 임계값 미만이면 연속 카운터 초기화
                         self.danger_frame_count = 0
@@ -144,7 +142,7 @@ class MaterialTracker:
                     # 1차 알림 기준 크기가 없는 경우(비정상 상황)
                     self.danger_frame_count = 0
         
-        return self.status
+        return RiskSeverity.SAFE
 
 
 # 전체 트래커 관리
@@ -171,16 +169,7 @@ def get_rotated_rect_sides(rotated_box) -> Tuple[float, float]:
     return shorter_side, longer_side
 
 
-def get_highest_risk_level(material_trackers):
-    if not material_trackers:  # 딕셔너리가 비어있는 경우
-        return RiskLevel.SAFE  # 기본값 0 (SAFE) 반환
-    
-    # 모든 MaterialTracker 객체의 status 값 중에서 최댓값 찾기
-    highest_risk = max(tracker.status for tracker in material_trackers.values())
-    return highest_risk
-
-
-def detect_material_risks(tracked_materials: List[Dict[str, Any]], frame_count: int) -> Tuple[int, float]:
+def detect_material_risks(tracked_materials: List[Dict[str, Any]], frame_count: int) -> List[Dict[str, Any]]:
     """
     건설 자재의 접근 위험을 감지합니다.
     작은 변의 길이 변화를 추적하여 카메라 방향으로 접근하는 자재를 감지합니다.
@@ -192,9 +181,8 @@ def detect_material_risks(tracked_materials: List[Dict[str, Any]], frame_count: 
     Returns:
         risk_level: 위험 감지 결과 알림 레벨
     """
-    risk_level = get_highest_risk_level(material_trackers)
+    risk_level = RiskSeverity.SAFE
     current_track_ids = set()
-    shorter_side = 0
     
     # 현재 프레임의 모든 자재에 대해 처리
     for material in tracked_materials:
@@ -223,7 +211,7 @@ def detect_material_risks(tracked_materials: List[Dict[str, Any]], frame_count: 
     # 오래된 트래커 제거 (일정 시간 이상 감지되지 않은 경우)
     clean_old_trackers(frame_count)
     
-    return risk_level, shorter_side
+    return risk_level
 
 
 def clean_old_trackers(current_frame, max_age=60):
