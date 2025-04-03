@@ -8,15 +8,24 @@ POSITION_WEIGHT = 0.4
 MAX_CENTER_DIST = 80
 
 # 중장비 차량 추적 로직을 사용할 클래스
-VEHICLE_CLASSES = {1, 2}
+VEHICLE_CLASSES = {3, 4}
 
 # 건설 자재 추적 로직을 사용할 클래스
 MATERIAL_CLASSES = {0}
 
 # 낙상 감지 추적 로직을 사용할 클래스
-FALL_ZONE_CLASSES = {4, 5}
+FALL_ZONE_CLASSES = {1, 2}
 
-class RiskLevel:
+# 위험 단계 (정확한 위험의 심각도)
+class RiskSeverity:
     SAFE = 0      # 안전한 상태
     WARNING = 1   # 1차 알림 발송 상태
     DANGER = 2    # 2차 알림 발송 상태
+    INCIDENT = 3  # 사고 발생 상태
+    
+# 위험 유형별 기준값 (코드 오프셋)
+class RiskTypeOffset:
+    MATERIAL = 0   # 건설 자재: 0 + 위험단계 = 1, 2, 3
+    FALL_ZONE = 3  # 낙상: 3 + 위험단계 = 4, 5, 7
+    VEHICLE = 6    # 차량: 6 + 위험단계 = 7, 8, 9
+    UNKNOWN = 10   # 원인 불명 사고: 항상 10
