@@ -7,5 +7,5 @@ import lombok.Setter;
 @Setter
 public class AlarmHistoryDto {
     private Long constructionSitesId;
-    private int accidentType;  // 사고 유형 (1-9)
+    private int alarmType;  // 사고 유형 (1-9)
 }
