@@ -1,4 +1,4 @@
-package kr.kro.smartcap.smartcap_back.util;
+package kr.kro.smartcap.smartcap_back.common.util;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.PutObjectRequest;
