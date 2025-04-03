@@ -25,8 +25,9 @@ async def save_gps_data(device_id: int):
         # 정상 종료
 
 async def handle_gps_device(websocket, device_id: int):
-    state.clients[device_id] = websocket
-    logger.info(f"[Device {device_id}] GPS device connected")
+    # 실제 device ID 2로 고정
+    state.clients[2] = websocket
+    logger.info(f"[Device 2] GPS device connected")
     gps_update_task = asyncio.create_task(save_gps_data(device_id))
 
     try:
