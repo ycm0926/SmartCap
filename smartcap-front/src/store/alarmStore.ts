@@ -6,7 +6,6 @@ export type Alarm = {
   alarm_id: number;
   construction_sites_id: number;
   weather_id?: number;
-  device_id?: number;
   gps: any;
   alarm_type: string;
   recognized_type: string;

@@ -25,8 +25,8 @@ const GoogleMapView = ({
 
   // 초기 중심 좌표 (역삼역)
   const center = {
-    lat: 37.500637, 
-    lng: 127.040012
+    lat: 37.501263, 
+    lng: 127.039615
   };
   
   // 맵 스타일 (다크 모드)
@@ -151,7 +151,7 @@ const GoogleMapView = ({
           lat: newAlarm.gps.coordinates[1], // Note the order: [longitude, latitude]
           lng: newAlarm.gps.coordinates[0]
         });
-        map.setZoom(18);
+        map.setZoom(20);
       }
     }
   }, [newAlarmId, alarmHistory, map]);
@@ -277,7 +277,7 @@ const GoogleMapView = ({
         <GoogleMap
           mapContainerStyle={containerStyle}
           center={center}
-          zoom={18}
+          zoom={20}
           options={mapOptions}
           onLoad={handleMapLoad}
         >

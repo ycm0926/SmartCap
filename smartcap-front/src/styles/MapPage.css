@@ -588,3 +588,202 @@
   transform: scale(0.95);
   transition: transform 0.1s;
 }
+
+/* src/styles/MapPage.css */
+
+.map-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #0d1117;
+  color: #fff;
+  position: relative;
+}
+
+.map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background-color: #0d1117;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 100;
+}
+
+.map-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.map-container {
+  position: absolute;
+  top: 64px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+.map-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  background-color: #0d1117;
+  color: #ccc;
+  font-size: 1rem;
+}
+
+.incidents-panel {
+  position: absolute;
+  top: 64px;
+  right: 0;
+  bottom: 0;
+  width: 350px;
+  background-color: rgba(13, 17, 23, 0.85);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 2;
+  padding: 1rem;
+  backdrop-filter: blur(8px);
+  overflow-y: auto;
+}
+
+/* 새로운 알람 효과 */
+.new-incident {
+  animation: pulse-background 2s ease-in-out;
+}
+
+.new-indicator {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background-color: #ff0000;
+  color: white;
+  font-size: 0.6rem;
+  padding: 1px 4px;
+  border-radius: 4px;
+  animation: pulse 1.5s infinite;
+}
+
+/* 지도 펄스 효과 */
+.map-pulse-effect {
+  position: relative;
+}
+
+.pulse-circle {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  position: absolute;
+  margin-left: -50px;
+  margin-top: -50px;
+  animation: pulse-map 2s infinite;
+}
+
+/* 알림 효과 */
+.alert-active {
+  animation: alert-flash 1s infinite;
+}
+
+.alert-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 0, 0, 0.1);
+  z-index: 1000;
+  pointer-events: none;
+  animation: alert-fade 1s infinite;
+}
+
+/* 로딩 오버레이 */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(13, 17, 23, 0.8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #0084ff;
+  animation: spinner 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+/* 애니메이션 정의 */
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+@keyframes pulse-background {
+  0% { background-color: rgba(255, 0, 0, 0.3); }
+  100% { background-color: transparent; }
+}
+
+@keyframes pulse-map {
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+@keyframes alert-flash {
+  0%, 100% { border-color: rgba(255, 0, 0, 0.3); }
+  50% { border-color: rgba(255, 0, 0, 0.6); }
+}
+
+@keyframes alert-fade {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes spinner {
+  to { transform: rotate(360deg); }
+}
+
+/* 날씨 아이콘 */
+.weather-badge {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  vertical-align: middle;
+}
+
+.weather-clear {
+  background-image: url('/weather-icons/sun.svg');
+}
+
+.weather-cloudy {
+  background-image: url('/weather-icons/cloudy.svg');
+}
+
+.weather-rain {
+  background-image: url('/weather-icons/rain.svg');
+}
+
+.weather-snow {
+  background-image: url('/weather-icons/snow.svg');
+}
+
+.weather-fog {
+  background-image: url('/weather-icons/fog.svg');
+}
+
+.weather-default {
+  background-image: url('/weather-icons/sun.svg');
+}
