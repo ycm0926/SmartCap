@@ -2,7 +2,7 @@ package kr.kro.smartcap.smartcap_back.accident.service;
 
 import kr.kro.smartcap.smartcap_back.accident.entity.AccidentVideo;
 import kr.kro.smartcap.smartcap_back.accident.repository.AccidentVideoRepository;
-import kr.kro.smartcap.smartcap_back.util.S3Uploader;
+import kr.kro.smartcap.smartcap_back.common.util.S3Uploader;
 import lombok.RequiredArgsConstructor;
 import org.jcodec.api.awt.AWTSequenceEncoder;
 import org.springframework.beans.factory.annotation.Value;
