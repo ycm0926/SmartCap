@@ -13,14 +13,17 @@ from starlette.websockets import WebSocketState
 from app.core.save_img import save_image, create_image_folder
 from app.core.save_video import create_video_from_images
 from app.core.redis_client import redis_client
-from app.models.run_model import run_model
+from app.services.detection_orchestrator import run_model
 from app.api import state
+
+# preprocess_frame 함수는 어안렌즈 보정과 90도 좌측 회전을 내부에서 수행하도록 수정됨
+from app.core.image_preprocessing import preprocess_frame
 
 logger = logging.getLogger(__name__)
 
 # 스프링 서버로 사고 정보를 전송하는 함수 (비동기)
 async def notify_accident(accident_type: int):
-    url = "http://localhost:8080/api/accidents/23/notify" # 23아이디 고정
+    url = "http://localhost:8080/api/accidents/23/notify"  # 23아이디 고정
     payload = {
         "constructionSitesId": 1,
         "accidentType": accident_type  # 전달받은 정수값 사용
@@ -72,21 +75,20 @@ async def handle_video_device(websocket, device_id: str):
                     logger.warning(f"[Device {device_id}] Unexpected text data received")
             
             if frame is not None:
-                # 90도 좌측(반시계방향) 회전
-                rotated_frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                # 동기적으로 run_model 호출 (실행이 끝나야 다음 단계 진행)
-                result = run_model(rotated_frame)
+                # preprocess_frame 내에서 어안렌즈 보정 및 90도 좌측 회전 수행
+                processed_frame = preprocess_frame(frame)
+                
+                # 동기적으로 run_model 호출 (실행 완료 후 다음 단계 진행)
+                result = run_model(processed_frame, 0)
                 logger.info(f"[Device {device_id}] run_model result: {result}")
                 
-                # run_model 결과에 따라 이미지 저장 및 추가 작업
                 if result in [1, 2, 3]:
-                    # 로컬에 이미지 저장
-                    save_image(folder, rotated_frame, img_count)
+                    # 로컬에 이미지 저장 (보정 및 회전된 이미지)
+                    save_image(folder, processed_frame, img_count)
                     logger.info(f"[Device {device_id}] Image saved locally, count: {img_count}")
                     
-                    # Redis 저장: result에 상관없이 저장할 경우
-                    # redis 저장 Device 23으로 고정
-                    ret, buf = cv2.imencode('.jpg', rotated_frame)
+                    # Redis 저장 (Device 23로 고정)
+                    ret, buf = cv2.imencode('.jpg', processed_frame)
                     if ret:
                         image_bytes = buf.tobytes()
                         key = f"device 23:image:{int(time.time() * 1000)}_{img_count}"
@@ -96,8 +98,8 @@ async def handle_video_device(websocket, device_id: str):
                     # 1차/2차 알림의 경우 스프링에 위험 알림 전송
                     # if result == 1 or result == 2:
                     #     await notify_alert(result)
-
-                    # 사고 발생인 경우 (result == 3) 스프링에 사고 알림 전송
+                    
+                    # 사고 발생인 경우 스프링에 사고 알림 전송
                     if result == 3:
                         await notify_accident(result)
                     
