@@ -61,7 +61,7 @@ def run_risk_detection_pipeline(frame, frame_count):
         # 자동차 위험 감지
         
         # 결과 받기
-        material_risks, shorter_side = material_risk_future.result()
+        material_risks = material_risk_future.result()
         fall_zone_risks = fall_zone_risk_future.result()
         # vehicle_risks
     
