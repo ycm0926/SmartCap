@@ -1,6 +1,7 @@
 package kr.kro.smartcap.smartcap_back.alarm.sse;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.kro.smartcap.smartcap_back.alarm.dto.AlarmHistoryRedisDto;
 import kr.kro.smartcap.smartcap_back.alarm.entity.AlarmHistory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,9 +60,9 @@ public class AlarmSseEmitterHandler {
         return emitter;
     }
 
-    public void sendAlarmToClients(AlarmHistory alarm) {
+    public void sendAlarmToClients(AlarmHistoryRedisDto alarm) {
         if (emitters.isEmpty()) {
-            logger.info("No active SSE connections to notify for alarm ID: {}", alarm.getAlarmId());
+//            logger.info("No active SSE connections to notify for alarm ID: {}", alarm.getAlarmId());
             return;
         }
 
@@ -88,19 +89,19 @@ public class AlarmSseEmitterHandler {
     }
 
     // 알람 엔티티를 프론트엔드에 적합한 응답 형식으로 변환
-    private Map<String, Object> convertToResponse(AlarmHistory alarm) {
+    private Map<String, Object> convertToResponse(AlarmHistoryRedisDto alarm) {
         Map<String, Object> response = new ConcurrentHashMap<>();
-        response.put("alarm_id", alarm.getAlarmId());
+//        response.put("alarm_id", alarm.getAlarmId());
         response.put("construction_sites_id", alarm.getConstructionSitesId());
 
         // GPS 정보 변환
-        if (alarm.getGps() != null) {
-            Map<String, Object> gpsInfo = new ConcurrentHashMap<>();
-            gpsInfo.put("type", "Point");
-            double[] coordinates = {alarm.getGps().getX(), alarm.getGps().getY()};
-            gpsInfo.put("coordinates", coordinates);
-            response.put("gps", gpsInfo);
-        }
+//        if (alarm.getGps() != null) {
+//            Map<String, Object> gpsInfo = new ConcurrentHashMap<>();
+//            gpsInfo.put("type", "Point");
+//            double[] coordinates = {alarm.getGps().getX(), alarm.getGps().getY()};
+//            gpsInfo.put("coordinates", coordinates);
+//            response.put("gps", gpsInfo);
+//        }
 
         response.put("alarm_type", alarm.getAlarmType());
         response.put("recognized_type", alarm.getRecognizedType());
