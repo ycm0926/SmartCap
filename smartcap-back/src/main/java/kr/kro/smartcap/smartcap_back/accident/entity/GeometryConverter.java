@@ -26,20 +26,35 @@ public class GeometryConverter implements AttributeConverter<Point, String> {
 
     @Override
     public Point convertToEntityAttribute(String dbData) {
-        if (dbData == null) {
+        if (dbData == null || dbData.isBlank()) {
             return null;
         }
+
+        // 데이터가 실제로 유효한지 추가 확인
+        if (dbData.equals("POINT EMPTY") || dbData.equals("SRID=4326;POINT EMPTY")) {
+            return null;
+        }
+
         String wkt = dbData;
         if (wkt.startsWith("SRID=4326;")) {
             wkt = wkt.substring("SRID=4326;".length());
         }
+
         try {
+            // 추가 유효성 검사
+            if (!wkt.toUpperCase().startsWith("POINT")) {
+                return null;
+            }
+
             WKTReader reader = new WKTReader(geometryFactory);
             Point point = (Point) reader.read(wkt);
             point.setSRID(4326);
             return point;
         } catch (Exception e) {
-            throw new RuntimeException("Error converting String to Point", e);
+            // 예외를 던지는 대신 로그를 남기고 null 반환
+            System.err.println("지오메트리 변환 오류: " + dbData + " - " + e.getMessage());
+            return null;
         }
     }
+
 }
