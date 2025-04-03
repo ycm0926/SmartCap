@@ -22,8 +22,8 @@ from app.core.image_preprocessing import preprocess_frame
 logger = logging.getLogger(__name__)
 
 # 스프링 서버로 사고 정보를 전송하는 함수 (비동기)
-async def notify_accident(accident_type: int):
-    url = "http://localhost:8080/api/accidents/23/notify"  # 23아이디 고정
+async def notify_accident(device_id: int, accident_type: int):
+    url = f"http://localhost:8080/api/accidents/{device_id}/notify"  # device_id 사용
     payload = {
         "constructionSitesId": 1,
         "accidentType": accident_type  # 전달받은 정수값 사용
@@ -32,9 +32,9 @@ async def notify_accident(accident_type: int):
         response = await client.post(url, json=payload)
         logger.info(f"Accident notify response: {response.status_code} {response.text}")
 
-# 스프링 서버로 1, 2차 알림을 전송하는 함수 (비동기)
-async def notify_alarm(alarm_type: int):
-    url = "http://localhost:8080/api/alarm/23/notify"  # 23아이디 고정
+# 스프링 서버로 알람을 전송하는 함수 (비동기)
+async def notify_alarm(device_id: int, alarm_type: int):
+    url = f"http://localhost:8080/api/alarm/{device_id}/notify"  # device_id 사용
     payload = {
         "constructionSitesId": 1,
         "accidentType": alarm_type  # 전달받은 정수값 사용
@@ -43,8 +43,7 @@ async def notify_alarm(alarm_type: int):
         response = await client.post(url, json=payload)
         logger.info(f"Alarm notify response: {response.status_code} {response.text}")
 
-async def handle_video_device(websocket, device_id: str):
-    device_id = 23
+async def handle_video_device(websocket, device_id: int):
     state.clients[device_id] = websocket
     logger.info(f"[Device {device_id}] Video device connected")
     folder = create_image_folder()
@@ -89,16 +88,16 @@ async def handle_video_device(websocket, device_id: str):
                 ret, buf = cv2.imencode('.jpg', processed_frame)
                 if ret:
                     image_bytes = buf.tobytes()
-                    key = f"device 23:image:{int(time.time() * 1000)}_{img_count}"
+                    key = f"device {device_id}:image:{int(time.time() * 1000)}_{img_count}"
                     redis_client.set(key, image_bytes, ex=180)
-                    logger.info(f"[Device 23] Image saved to Redis with key {key}")
+                    logger.info(f"[Device {device_id}] Image saved to Redis with key {key}")
                     
-                # result가 0이 아니면 notify 함수 호출
+                # result가 0이 아니면 notify 함수 호출 (0이면 알림 없이 저장만 수행)
                 if result != 0:
-                    if result % 3 == 0: # 3의 배수면 사고 알림
-                        await notify_accident(result)
-                    else: # 그 외는 1차, 2차 알림
-                        await notify_alarm(result)
+                    if result % 3 == 0:  # 3의 배수면 사고 알림
+                        await notify_accident(device_id, result)
+                    else:             # 그 외는 알람 함수 호출
+                        await notify_alarm(device_id, result)
                 else:
                     logger.info(f"[Device {device_id}] run_model result is 0, no notification sent")
                     
