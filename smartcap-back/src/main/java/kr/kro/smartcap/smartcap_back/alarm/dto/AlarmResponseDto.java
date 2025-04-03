@@ -3,6 +3,7 @@ package kr.kro.smartcap.smartcap_back.alarm.dto;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
+import org.locationtech.jts.geom.Point;
 
 import java.time.Instant;
 import java.util.Map;
@@ -11,7 +12,7 @@ import java.util.Map;
 @Setter
 @Builder
 public class AlarmResponseDto {
-    private Long alarmId;
+
     private Long constructionSitesId;
     private Map<String, Object> gps;
     private String alarmType;

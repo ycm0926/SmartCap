@@ -62,7 +62,7 @@ public class AlarmSseEmitterHandler {
 
     public void sendAlarmToClients(AlarmHistoryRedisDto alarm) {
         if (emitters.isEmpty()) {
-//            logger.info("No active SSE connections to notify for alarm ID: {}", alarm.getAlarmId());
+            logger.info("No active SSE connections to notify for alarm");
             return;
         }
 
@@ -95,12 +95,12 @@ public class AlarmSseEmitterHandler {
         response.put("construction_sites_id", alarm.getConstructionSitesId());
 
         // GPS 정보 변환
-//        if (alarm.getGps() != null) {
-//            Map<String, Object> gpsInfo = new ConcurrentHashMap<>();
-//            gpsInfo.put("type", "Point");
-//            double[] coordinates = {alarm.getGps().getX(), alarm.getGps().getY()};
-//            gpsInfo.put("coordinates", coordinates);
-//            response.put("gps", gpsInfo);
+//        if (alarm.getLng() != 0 && ) {
+            Map<String, Object> gpsInfo = new ConcurrentHashMap<>();
+            gpsInfo.put("type", "Point");
+            double[] coordinates = {alarm.getLat(), alarm.getLng()};
+            gpsInfo.put("coordinates", coordinates);
+            response.put("gps", gpsInfo);
 //        }
 
         response.put("alarm_type", alarm.getAlarmType());
