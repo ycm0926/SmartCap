@@ -1,3 +1,4 @@
+import os
 import cv2
 import base64
 import numpy as np
@@ -21,9 +22,11 @@ from app.core.image_preprocessing import preprocess_frame
 
 logger = logging.getLogger(__name__)
 
+BACKEND_SERVER_HOST = os.environ.get("BACKEND_SERVER_HOST", "localhost:8080")
+
 # 스프링 서버로 사고 정보를 전송하는 함수 (비동기, fire-and-forget)
 async def notify_accident(device_id: int, accident_type: int):
-    url = f"http://localhost:8080/api/accidents/{device_id}/notify"  # device_id 사용
+    url = f"http://{BACKEND_SERVER_HOST}/api/accidents/{device_id}/notify"  # device_id 사용
     payload = {
         "constructionSitesId": 1,
         "accidentType": accident_type
@@ -39,7 +42,7 @@ async def notify_accident(device_id: int, accident_type: int):
 
 # 스프링 서버로 알람을 전송하는 함수 (비동기, fire-and-forget)
 async def notify_alarm(device_id: int, alarm_type: int):
-    url = f"http://localhost:8080/api/alarm/{device_id}/notify"  # device_id 사용
+    url = f"http://{BACKEND_SERVER_HOST}/api/alarm/{device_id}/notify"  # device_id 사용
     payload = {
         "constructionSitesId": 1,
         "accidentType": alarm_type
