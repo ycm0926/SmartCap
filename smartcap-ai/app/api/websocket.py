@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from fastapi import WebSocket
 
@@ -12,6 +11,6 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
     logger.info(f"[Device {device_id}] Connection accepted")
 
     if device_id == "1":
-        await handle_video_device(websocket, device_id)
+        await handle_video_device(websocket, 23) # deviceId 23전달
     elif device_id == "2":
-        await handle_gps_device(websocket, device_id)
+        await handle_gps_device(websocket, 23) # deviceId 23전달

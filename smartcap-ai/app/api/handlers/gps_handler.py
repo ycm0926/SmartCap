@@ -6,24 +6,25 @@ from app.api import state
 
 logger = logging.getLogger(__name__)
 
-async def save_gps_data(device_id: str):
+async def save_gps_data(device_id: int):
     """
     10초마다 고정 좌표값(lat: 37.502, lng: 127.04)을 Redis에 저장하는 태스크.
     """
     try:
         while True:
             try:
-                # redis 저장 device id 23으로 고정
-                redis_client.hset("gps 23", mapping={"lat": 37.502, "lng": 127.04})
-                logger.info(f"[Device 23] Periodic GPS update saved.")
+                # 전달받은 device_id를 이용하여 Redis에 저장
+                redis_key = f"gps {device_id}"
+                redis_client.hset(redis_key, mapping={"lat": 37.502, "lng": 127.04})
+                logger.info(f"[Device {device_id}] Periodic GPS update saved.")
             except Exception as e:
-                logger.error(f"[Device 23] Error during periodic GPS update: {e}")
+                logger.error(f"[Device {device_id}] Error during periodic GPS update: {e}")
             await asyncio.sleep(10)
     except asyncio.CancelledError:
-        logger.info(f"[Device 23] save_gps_data cancelled")
+        logger.info(f"[Device {device_id}] save_gps_data cancelled")
         # 정상 종료
 
-async def handle_gps_device(websocket, device_id: str):
+async def handle_gps_device(websocket, device_id: int):
     state.clients[device_id] = websocket
     logger.info(f"[Device {device_id}] GPS device connected")
     gps_update_task = asyncio.create_task(save_gps_data(device_id))
