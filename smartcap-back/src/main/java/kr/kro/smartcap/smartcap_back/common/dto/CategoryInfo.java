@@ -1,20 +1,15 @@
 package kr.kro.smartcap.smartcap_back.common.dto;
 
+import lombok.Getter;
+
+@Getter
 public class CategoryInfo {
     private final String category;
-    private final int code;
+    private final String code;
 
-    public CategoryInfo(String category, int code) {
+    public CategoryInfo(String category, String code) {
         this.category = category;
         this.code = code;
-    }
-
-    public String getCategory() {
-        return category;
-    }
-
-    public int getCode() {
-        return code;
     }
 
     @Override
