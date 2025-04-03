@@ -1,9 +1,12 @@
 package kr.kro.smartcap.smartcap_back.alarm.service;
 
 import kr.kro.smartcap.smartcap_back.alarm.dto.AlarmHistoryDto;
+import kr.kro.smartcap.smartcap_back.alarm.dto.AlarmHistoryRedisDto;
 import kr.kro.smartcap.smartcap_back.alarm.entity.AlarmHistory;
 import kr.kro.smartcap.smartcap_back.alarm.repository.AlarmHistoryRepository;
 import kr.kro.smartcap.smartcap_back.alarm.sse.AlarmSseEmitterHandler;
+import kr.kro.smartcap.smartcap_back.common.dto.CategoryInfo;
+import kr.kro.smartcap.smartcap_back.common.util.AlarmCategoryMapper;
 import lombok.RequiredArgsConstructor;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -16,7 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Map;
 
 @Service
@@ -25,6 +30,7 @@ public class AlarmProcessingService {
 
     private final AlarmHistoryRepository alarmHistoryRepository;
     private final RedisTemplate<String, String> redisTemplate;
+    private final RedisTemplate<String, Object> objectRedisTemplate;
     private final AlarmSseEmitterHandler alarmSseEmitterHandler;
 
     private static final Logger logger = LoggerFactory.getLogger(AlarmProcessingService.class);
@@ -32,53 +38,46 @@ public class AlarmProcessingService {
     private static final String WEATHER_KEY = "current:weather";
 
     @Transactional
-    public AlarmHistory processAlarm(int deviceId, AlarmHistoryDto dto) {
-        AlarmHistory alarmHistory = new AlarmHistory();
-        alarmHistory.setAlarmType(dto.getAlarmType());
-        alarmHistory.setRecognizedType(dto.getRecognizedType());
-        alarmHistory.setCreatedAt(Timestamp.from(Instant.now()));
+    public void processAlarm(int deviceId, AlarmHistoryDto dto) {
+        AlarmHistoryRedisDto alarmHistoryRedisDto = new AlarmHistoryRedisDto();
+
+        CategoryInfo info = AlarmCategoryMapper.map(dto.getAccidentType());
+
+        alarmHistoryRedisDto.setAlarmType(info.getCode());
+        alarmHistoryRedisDto.setRecognizedType(info.getCategory());
+        alarmHistoryRedisDto.setCreatedAt(Timestamp.from(Instant.now()));
 
         // 디폴트 현장 ID 설정
-        alarmHistory.setConstructionSitesId(1L);
+        alarmHistoryRedisDto.setConstructionSitesId(1L);
 
-        // Redis에서 GPS 정보 조회 - deviceId 활용
-        setGpsFromRedis(alarmHistory, deviceId);
-
-        // Redis에서 날씨 정보 조회
-        setWeatherFromRedis(alarmHistory);
-
-        // DB에 저장
-        AlarmHistory savedAlarm = alarmHistoryRepository.save(alarmHistory);
-        logger.info("AlarmHistory saved: alarmId={}, constructionSitesId={}, deviceId={}",
-                savedAlarm.getAlarmId(), savedAlarm.getConstructionSitesId(), deviceId);
-
-        // SSE 전송
-        alarmSseEmitterHandler.sendAlarmToClients(savedAlarm);
-
-        return savedAlarm;
-    }
-
-    private void setGpsFromRedis(AlarmHistory alarmHistory, int deviceId) {
-        // deviceId별 GPS 정보를 가져오도록 수정
+        // Redis에서 "gps {deviceId}" 형식의 키로 gps 정보 조회
         String redisKey = "gps " + deviceId;
         Map<Object, Object> gpsMap = redisTemplate.opsForHash().entries(redisKey);
-
         if (gpsMap != null && !gpsMap.isEmpty()) {
             try {
                 double lat = Double.parseDouble(gpsMap.get("lat").toString());
                 double lng = Double.parseDouble(gpsMap.get("lng").toString());
-                GeometryFactory gf = new GeometryFactory(new PrecisionModel(), 4326);
-                Point point = gf.createPoint(new Coordinate(lng, lat));
-                alarmHistory.setGps(point);
-                logger.info("GPS data set from deviceId {}: lat={}, lng={}", deviceId, lat, lng);
+                alarmHistoryRedisDto.setLat(lat);
+                alarmHistoryRedisDto.setLng(lng);
             } catch (Exception e) {
                 logger.warn("Failed to parse GPS data from Redis for device {}: {}", deviceId, e.getMessage());
-                setDefaultGps(alarmHistory);
             }
         } else {
-            logger.info("No GPS data found in Redis for device {}. Default GPS set.", deviceId);
-            setDefaultGps(alarmHistory);
+            logger.info("No GPS data found in Redis for device {}. GPS not set.", deviceId);
         }
+
+        // Redis에서 날씨 정보 조회
+        setWeatherFromRedis(alarmHistoryRedisDto);
+
+        // Redis에 저장
+        Long siteId = alarmHistoryRedisDto.getConstructionSitesId();
+        String key = String.format("alarm:%d:%s", siteId, LocalDate.now());
+        objectRedisTemplate.opsForList().rightPush(key, alarmHistoryRedisDto);
+        objectRedisTemplate.expire(key, Duration.ofDays(2));
+
+        // SSE 전송
+        alarmSseEmitterHandler.sendAlarmToClients(alarmHistoryRedisDto);
+
     }
 
     private void setDefaultGps(AlarmHistory alarmHistory) {
@@ -88,7 +87,7 @@ public class AlarmProcessingService {
         alarmHistory.setGps(defaultPoint);
     }
 
-    private void setWeatherFromRedis(AlarmHistory alarmHistory) {
+    private void setWeatherFromRedis(AlarmHistoryRedisDto alarmHistory) {
         String weather = redisTemplate.opsForValue().get(WEATHER_KEY);
 
         if (weather != null && !weather.isEmpty()) {
