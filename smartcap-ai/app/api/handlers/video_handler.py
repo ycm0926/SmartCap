@@ -92,12 +92,21 @@ async def handle_video_device(websocket, device_id: int):
                     redis_client.set(key, image_bytes, ex=180)
                     logger.info(f"[Device {device_id}] Image saved to Redis with key {key}")
                     
-                # result가 0이 아니면 notify 함수 호출 (0이면 알림 없이 저장만 수행)
+                # result가 0이 아니면 notify 함수 호출
                 if result != 0:
-                    if result % 3 == 0:  # 3의 배수면 사고 알림
+                    if result % 3 == 0:  # 3의 배수면 스프링에 사고 알림
                         await notify_accident(device_id, result)
-                    else:             # 그 외는 알람 함수 호출
+                    else:
+                        # 아니라면 스프링에 1차 2차 알림
                         await notify_alarm(device_id, result)
+                        
+                        # device 2에 웹소켓 통신으로 result 전송
+                        target_device = 2
+                        if target_device in state.clients:
+                            await state.clients[target_device].send_text(str(result))
+                            logger.info(f"[Device {device_id}] Sent result {result} to device {target_device} via websocket.")
+                        else:
+                            logger.warning(f"[Device {device_id}] Device {target_device} not connected. Cannot send result.")
                 else:
                     logger.info(f"[Device {device_id}] run_model result is 0, no notification sent")
                     
