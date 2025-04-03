@@ -31,6 +31,7 @@ const GoogleMapView = ({
   
   // 맵 스타일 (다크 모드)
  // 맵 스타일 (다크 모드 + POI 제거)
+  // 변경된 코드:
   const mapOptions = {
     disableDefaultUI: false,
     zoomControl: true,
@@ -61,21 +62,11 @@ const GoogleMapView = ({
         stylers: [{ color: "#38414e" }]
       },
       {
-        featureType: "road",
-        elementType: "geometry.stroke",
-        stylers: [{ color: "#212a37" }]
-      },
-      {
-        featureType: "road",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#9ca5b3" }]
-      },
-      {
         featureType: "water",
         elementType: "geometry",
         stylers: [{ color: "#17263c" }]
       },
-      // POI 제거 (상점, 사업체, 명소 등)
+      // POI 제거 - 하나의 통합 규칙으로 처리
       {
         featureType: "poi",
         stylers: [{ visibility: "off" }]
@@ -84,100 +75,65 @@ const GoogleMapView = ({
       {
         featureType: "transit",
         stylers: [{ visibility: "off" }]
-      },
-      // 지점 라벨 제거
-      {
-        featureType: "poi.business",
-        stylers: [{ visibility: "off" }]
-      },
-      // 랜드마크 제거
-      {
-        featureType: "poi.park",
-        stylers: [{ visibility: "off" }]
-      },
-      // 일반적인 관심 장소 라벨 제거
-      {
-        featureType: "poi.attraction",
-        stylers: [{ visibility: "off" }]
-      },
-      // 정부 기관 라벨 제거
-      {
-        featureType: "poi.government",
-        stylers: [{ visibility: "off" }]
-      },
-      // 의료시설 라벨 제거
-      {
-        featureType: "poi.medical",
-        stylers: [{ visibility: "off" }]
-      },
-      // 학교 라벨 제거
-      {
-        featureType: "poi.school",
-        stylers: [{ visibility: "off" }]
-      },
-      // 스포츠 시설 라벨 제거
-      {
-        featureType: "poi.sports_complex",
-        stylers: [{ visibility: "off" }]
       }
     ]
   };
-  
-  // 마커 아이콘 설정 (SVG 기반)
-  const getMarkerIcon = (alarmType, isNew = false) => {
-    const color = getAlarmColor(alarmType, isNew);
     
-    // 드롭 핀 모양의 SVG 아이콘
-    const svgMarker = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" width="30" height="42">
-        <path fill="${color}" d="M172.268 501.67C26.97 291.031 0 269.413 0 192 0 85.961 85.961 0 192 0s192 85.961 192 192c0 77.413-26.97 99.031-172.268 309.67-9.535 13.774-29.93 13.773-39.464 0zM192 272c44.183 0 80-35.817 80-80s-35.817-80-80-80-80 35.817-80 80 35.817 80 80 80z"/>
-      </svg>
-    `;
-    
-    return {
-      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svgMarker)}`,
-      scaledSize: new window.google.maps.Size(30, 42),
-      anchor: new window.google.maps.Point(15, 42), // 핀 하단 중앙이 좌표에 위치하도록
-      labelOrigin: new window.google.maps.Point(15, 15) // 라벨 위치
+    // 마커 아이콘 설정 (SVG 기반)
+    const getMarkerIcon = (alarmType, isNew = false) => {
+      const color = getAlarmColor(alarmType, isNew);
+      
+      // 드롭 핀 모양의 SVG 아이콘
+      const svgMarker = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" width="30" height="42">
+          <path fill="${color}" d="M172.268 501.67C26.97 291.031 0 269.413 0 192 0 85.961 85.961 0 192 0s192 85.961 192 192c0 77.413-26.97 99.031-172.268 309.67-9.535 13.774-29.93 13.773-39.464 0zM192 272c44.183 0 80-35.817 80-80s-35.817-80-80-80-80 35.817-80 80 35.817 80 80 80z"/>
+        </svg>
+      `;
+      
+      return {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svgMarker)}`,
+        scaledSize: new window.google.maps.Size(30, 42),
+        anchor: new window.google.maps.Point(15, 42), // 핀 하단 중앙이 좌표에 위치하도록
+        labelOrigin: new window.google.maps.Point(15, 15) // 라벨 위치
+      };
     };
-  };
 
-  // 새 알람 생성 시 지도 이동 처리
-  useEffect(() => {
-    if (newAlarmId && map) {
-      const newAlarm = alarmHistory.find(alarm => alarm.alarm_id === newAlarmId);
-      if (newAlarm) {
-        map.panTo({
-          lat: newAlarm.gps.coordinates[1], // Note the order: [longitude, latitude]
-          lng: newAlarm.gps.coordinates[0]
-        });
-        map.setZoom(20);
+    // 새 알람 생성 시 지도 이동 처리
+    useEffect(() => {
+      if (newAlarmId && map) {
+        const newAlarm = alarmHistory.find(alarm => alarm.alarm_id === newAlarmId);
+        if (newAlarm) {
+          map.panTo({
+            lat: newAlarm.gps.coordinates[1], // Note the order: [longitude, latitude]
+            lng: newAlarm.gps.coordinates[0]
+          });
+          map.setZoom(20);
+        }
       }
-    }
-  }, [newAlarmId, alarmHistory, map]);
+    }, [newAlarmId, alarmHistory, map]);
 
-  // 맵 로드 핸들러
-  const handleMapLoad = (mapInstance) => {
-    console.log("Google Map loaded:", mapInstance);
-    mapRef.current = mapInstance;
-    setMap(mapInstance);
-  };
+    // 맵 로드 핸들러
+    const handleMapLoad = (mapInstance) => {
+      console.log("Google Map loaded:", mapInstance);
+      mapRef.current = mapInstance;
+      setMap(mapInstance);
+    };
 
-  // 마커 클릭 핸들러
-  const handleMarkerClick = (alarm) => {
-    setSelectedMarker(alarm);
-  };
+    // 마커 클릭 핸들러
+    const handleMarkerClick = (alarm) => {
+      setSelectedMarker(alarm);
+    };
 
-  // 인포윈도우 닫기 핸들러
-  const handleInfoWindowClose = () => {
-    setSelectedMarker(null);
-  };
+    // 인포윈도우 닫기 핸들러
+    const handleInfoWindowClose = () => {
+      setSelectedMarker(null);
+    };
 
-  // 상세 정보 보기 핸들러
-  const handleDetailClick = (alarm) => {
-    setSelectedMarker(null);
-    openAlarmDetails(alarm);
-  };
+    // 상세 정보 보기 핸들러
+    const handleDetailClick = (alarm) => {
+      setSelectedMarker(null);
+      openAlarmDetails(alarm);
+    };
 
   // 사용자 정의 마커 렌더링
   const renderCustomMarkers = () => {

@@ -1,5 +1,5 @@
 // MapPage.jsx
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import '../styles/MapPage.css';
 import { useAlarmStore } from '../store/alarmStore';
@@ -30,79 +30,131 @@ const MapPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isInitialMount = useRef(true);
+  const alarmProcessedRef = useRef(new Set()); // 이미 처리된 알람 ID 관리
 
-  // (선택 사항) 알람의 최신 순 정렬 처리: store가 새로운 배열을 반환하지 않는다면
+  // 알람의 최신 순 정렬 처리 메모이제이션
   const sortedAlarms = useMemo(() => {
+    if (alarms.length === 0) return [];
     return [...alarms].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   }, [alarms]);
 
   // 백엔드에서 지도 데이터를 가져오는 함수
-  const fetchMapData = async () => {
+  const fetchMapData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get('http://localhost:8080/api/events/map');
+      
+      // 필요한 데이터만 요청하도록 파라미터 추가
+      const response = await axios.get('http://localhost:8080/api/events/map', {
+        params: {
+          limit: 50  // 최근 50개 알람만 요청 (서버에서 지원한다면)
+        },
+        timeout: 10000  // 10초 타임아웃 설정
+      });
       
       console.log('백엔드에서 받아온 지도 데이터:', response.data);
       
+      // 모든 알람을 처리하기 전에 배열로 준비
+      const allAlarms = [];
+      
+      // recentAlarms 처리
       if (response.data.recentAlarms && Array.isArray(response.data.recentAlarms)) {
         response.data.recentAlarms.forEach(alarm => {
           if (typeof alarm.created_at === 'string') {
             alarm.created_at = new Date(alarm.created_at);
           }
-          addAlarm(alarm);
+          allAlarms.push(alarm);
         });
       }
       
+      // fallingAccidents 처리
       if (response.data.fallingAccidents && Array.isArray(response.data.fallingAccidents)) {
         response.data.fallingAccidents.forEach(accident => {
           if (typeof accident.created_at === 'string') {
             accident.created_at = new Date(accident.created_at);
           }
-          addAlarm(accident);
+          allAlarms.push(accident);
         });
       }
       
-      setIsLoading(false);
+      // 모든 알람을 최신순으로 정렬
+      allAlarms.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      
+      // 일괄 처리: 모든 알람을 한 번에 스토어에 추가
+      console.log(`총 ${allAlarms.length}개의 알람을 처리합니다.`);
+      
+      // setTimeout으로 UI 렌더링 차단 방지
+      setTimeout(() => {
+        allAlarms.forEach(alarm => {
+          addAlarm(alarm);
+        });
+        setIsLoading(false);
+      }, 10);
+      
     } catch (error) {
       console.error('지도 데이터를 가져오는 중 오류 발생:', error);
       setIsLoading(false);
     }
-  };
+  }, [addAlarm]);
 
+  // 초기 데이터 로드
   useEffect(() => {
-    fetchMapData();
-  }, []);
+    let isMounted = true;
+    
+    const loadMapData = async () => {
+      await fetchMapData();
+      if (isMounted) setIsLoading(false);
+    };
+    
+    loadMapData();
+    
+    // 안전장치: 최대 8초 후에는 로딩 표시 중단
+    const loadTimeout = setTimeout(() => {
+      if (isMounted) setIsLoading(false);
+    }, 3000);
+    
+    return () => {
+      isMounted = false;
+      clearTimeout(loadTimeout);
+    };
+  }, [fetchMapData]);
 
-  // 알람이 새로 추가되면 알림 효과 활성화
+  // 알람이 새로 추가되면 알림 효과 활성화 - 최적화
   useEffect(() => {
-    if (sortedAlarms.length > 0) {
-      // 최신 알람 (정렬한 배열의 첫 번째 항목)
-      const latestAlarm = sortedAlarms[0];
+    if (!sortedAlarms.length) return;
+
+    // 최신 알람 (정렬한 배열의 첫 번째 항목)
+    const latestAlarm = sortedAlarms[0];
+    
+    // 이미 처리한 알람인지 확인
+    if (latestAlarm.alarm_id !== newAlarmId && !alarmProcessedRef.current.has(latestAlarm.alarm_id)) {
+      // 처리된 알람으로 표시
+      alarmProcessedRef.current.add(latestAlarm.alarm_id);
       
-      if (latestAlarm.alarm_id !== newAlarmId) {
-        setIsAlertActive(true);
-        setNewAlarmId(latestAlarm.alarm_id);
-        playAlertSound();
-        
-        if (mapRef.current && window.google) {
-          try {
-            const position = {
-              lat: latestAlarm.gps.coordinates[1],
-              lng: latestAlarm.gps.coordinates[0]
-            };
-            mapRef.current.panTo(position);
-            mapRef.current.setZoom(16);
-          } catch (error) {
-            console.error('지도 이동 오류:', error);
-          }
+      setIsAlertActive(true);
+      setNewAlarmId(latestAlarm.alarm_id);
+      playAlertSound();
+      
+      if (mapRef.current && window.google) {
+        try {
+          const position = {
+            lat: latestAlarm.gps.coordinates[1],
+            lng: latestAlarm.gps.coordinates[0]
+          };
+          mapRef.current.panTo(position);
+          mapRef.current.setZoom(16);
+        } catch (error) {
+          console.error('지도 이동 오류:', error);
         }
-        
-        setTimeout(() => {
-          setNewAlarmId(null);
-        }, 10000);
       }
+      
+      // 10초 후 새 알람 표시 해제
+      const timer = setTimeout(() => {
+        setNewAlarmId(null);
+      }, 10000);
+      
+      return () => clearTimeout(timer);
     }
-  }, [sortedAlarms]);
+  }, [sortedAlarms, newAlarmId]);
 
   // 사고 알림으로 인한 라우팅 처리
   useEffect(() => {
@@ -114,9 +166,12 @@ const MapPage = () => {
         
         if (location.state?.alarmId) {
           setNewAlarmId(location.state.alarmId);
-          setTimeout(() => {
+          
+          const timer = setTimeout(() => {
             setNewAlarmId(null);
           }, 10000);
+          
+          return () => clearTimeout(timer);
         }
       }
       return;
@@ -135,13 +190,17 @@ const MapPage = () => {
       
       if (location.state?.alarmId) {
         setNewAlarmId(location.state.alarmId);
-        setTimeout(() => {
+        
+        const timer = setTimeout(() => {
           setNewAlarmId(null);
         }, 10000);
+        
+        return () => clearTimeout(timer);
       }
     }
   }, [location]);
 
+  // 알림 효과 이벤트 처리
   useEffect(() => {
     if (!isAlertActive) return;
 
@@ -164,15 +223,18 @@ const MapPage = () => {
     };
   }, [isAlertActive]);
   
-  const playAlertSound = () => {
+  // 알림 소리 재생 - 메모이제이션
+  const playAlertSound = useCallback(() => {
     if (!alertAudioRef.current) {
       alertAudioRef.current = new Audio('/alert-siren.mp3');
       alertAudioRef.current.volume = 0.7;
     }
+    // catch를 통해 오류 처리
     alertAudioRef.current.play().catch(e => console.error('오디오 재생 실패:', e));
-  };
+  }, []);
   
-  const openAlarmDetails = async (alarm) => {
+  // 알람 상세 정보 열기 - 메모이제이션
+  const openAlarmDetails = useCallback(async (alarm) => {
     setSelectedAlarm(alarm);
     
     if (alarm.accident_id || 
@@ -199,21 +261,22 @@ const MapPage = () => {
     }
     
     setShowModal(true);
-  };
+  }, []);
   
-  const closeModal = () => {
+  // 모달 닫기 - 메모이제이션
+  const closeModal = useCallback(() => {
     setShowModal(false);
     setSelectedAlarm(null);
     setAccidentVideo(null);
-  };
+  }, []);
 
-  const handleLogout = () => {
+  // 로그아웃 처리 - 메모이제이션
+  const handleLogout = useCallback(() => {
     navigate('/login');
-  };
+  }, [navigate]);
 
   return (
     <div className={`map-page ${isAlertActive ? 'alert-active' : ''}`}>
-      {/* AlarmSSE 컴포넌트를 추가하여 실시간 알람 구독 */}
       {/* 알람 SSE 구독 */}
       <AlarmSSE />
       {/* 사고 SSE 구독 추가 */}
