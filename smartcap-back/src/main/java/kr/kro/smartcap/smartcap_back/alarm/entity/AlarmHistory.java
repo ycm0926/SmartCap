@@ -22,9 +22,6 @@ public class AlarmHistory {
     @Column(name = "construction_sites_id", nullable = false)
     private Long constructionSitesId;
 
-    @Column(name = "device_id", nullable = false)
-    private Integer deviceId;
-
     @Convert(converter = GeometryConverter.class)
     @Column(name = "gps", columnDefinition = "geometry(Point,4326)")
     private Point gps;

@@ -92,7 +92,6 @@ public class AlarmSseEmitterHandler {
         Map<String, Object> response = new ConcurrentHashMap<>();
         response.put("alarm_id", alarm.getAlarmId());
         response.put("construction_sites_id", alarm.getConstructionSitesId());
-        response.put("device_id", alarm.getDeviceId());
 
         // GPS 정보 변환
         if (alarm.getGps() != null) {
