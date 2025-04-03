@@ -16,7 +16,6 @@ public class AlarmDTO {
     private Long alarm_id;
     private Long construction_sites_id;
     private Long weather_id;
-    private Long device_id;       // 안전모 ID
     private GpsDTO gps;
     private String alarm_type;    // Warning, Danger, Accident
     private String recognized_type; // Material, Vehicle, Falling 등
