@@ -78,7 +78,7 @@ def ious(atlbrs, btlbrs):
 def iou_distance(atracks, btracks):
     """
     IoU를 기반으로 비용 행렬을 계산합니다.
-    특정 클래스의 경우 회전된 바운딩 박스 기반으로 IoU를 계산합니다.
+    특정 클래스의 경우 세그멘테이션 마스크 기반으로 IoU를 계산합니다.
 
     Parameter:
     - type atracks: list[STrack]
@@ -98,25 +98,40 @@ def iou_distance(atracks, btracks):
 
         for i, atrack in enumerate(atracks):
             for j, btrack in enumerate(btracks):
-                # 특정 클래스에 대해 회전된 바운딩 박스 사용
+                # 특정 클래스에 대해 세그멘테이션 마스크 사용
                 if (hasattr(atrack, 'class_id') and hasattr(btrack, 'class_id') and
                     atrack.class_id in SPECIFIC_CLASSES and btrack.class_id in SPECIFIC_CLASSES and
-                    hasattr(atrack, '_rotated_box') and hasattr(btrack, '_rotated_box') and
-                    atrack._rotated_box is not None and btrack._rotated_box is not None):
+                    hasattr(atrack, '_mask') and hasattr(btrack, '_mask') and
+                    atrack._mask is not None and btrack._mask is not None):
 
-                    # OBB IoU 계산
-                    iou_val = rotated_iou(atrack._rotated_box, btrack._rotated_box)
-
-                    # 중심점 거리 계산
-                    center_a = atrack._rotated_box[0]
-                    center_b = btrack._rotated_box[0]
-                    dist = np.sqrt(np.sum((np.array(center_a) - np.array(center_b))**2))
-
-                    # 정규화된 거리
-                    norm_dist = min(1.0, dist / MAX_CENTER_DIST)
+                    # 세그멘테이션 마스크 IoU 계산 -> Numpy 백터 연산으로 최적화
+                    # 교집합 (AND 연산)
+                    intersection = np.logical_and(atrack._mask, btrack._mask).sum()
+                    # 합집합 (OR 연산)
+                    union = np.logical_or(atrack._mask, btrack._mask).sum()
                     
-                    # 융합: IoU와 거리를 가중합
-                    _ious[i, j] = (1 - POSITION_WEIGHT) * iou_val + POSITION_WEIGHT * (1 - norm_dist)
+                    # IoU 계산
+                    iou_val = intersection / union if union > 0 else 0
+
+                    # 중심점 거리 계산 - 마스크의 무게 중심을 사용
+                    # 마스크가 존재하는 픽셀의 좌표 추출
+                    y_a, x_a = np.where(atrack._mask)
+                    y_b, x_b = np.where(btrack._mask)
+                    
+                    # 무게 중심 계산
+                    if len(y_a) > 0 and len(y_b) > 0:
+                        center_a = (np.mean(x_a), np.mean(y_a))
+                        center_b = (np.mean(x_b), np.mean(y_b))
+                        dist = np.sqrt((center_a[0] - center_b[0])**2 + (center_a[1] - center_b[1])**2)
+                        
+                        # 정규화된 거리
+                        norm_dist = min(1.0, dist / MAX_CENTER_DIST)
+                        
+                        # 융합: IoU와 거리를 가중합
+                        _ious[i, j] = (1 - POSITION_WEIGHT) * iou_val + POSITION_WEIGHT * (1 - norm_dist)
+                    else:
+                        # 마스크가 비어 있으면 기본 바운딩 박스 IoU 사용
+                        _ious[i, j] = ious([atrack.tlbr], [btrack.tlbr])[0, 0]
                 
                 else:
                     # 기존 AABB 바운딩 박스 IoU 계산
