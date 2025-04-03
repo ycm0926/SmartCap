@@ -5,8 +5,8 @@ from app.config import RiskSeverity
 # 자재 위험 감지 설정
 HISTORY_SIZE = 30  # 추적할 최대 프레임 수
 MIN_FRAMES_FOR_DETECTION = 5  # 접근 감지를 위한 최소 프레임 수
-FIRST_ALERT_THRESHOLD = 1.15  # 1차 알림 임계값: 15% 이상 크기 증가
-SECOND_ALERT_THRESHOLD = 1.30  # 2차 알림 임계값: 30% 이상 크기 증가
+FIRST_ALERT_THRESHOLD = 1.1  # 1차 알림 임계값: 10% 이상 크기 증가
+SECOND_ALERT_THRESHOLD = 1.35  # 2차 알림 임계값: 35% 이상 크기 증가
 MIN_DETECTION_CONFIDENCE = 0.7  # 자재 크기를 신뢰할 최소 신뢰도 점수
 CONSECUTIVE_FRAMES_REQUIRED = 3  # 위험 상태 변경을 위한 연속 프레임 수
 
@@ -45,7 +45,7 @@ class MaterialTracker:
             if len(self.size_history) == MIN_FRAMES_FOR_DETECTION:
                 # 안정화 기간이 끝나면 초기 기준 크기 설정
                 self._establish_baseline_size()
-            return RiskSeverity.SAFE
+            return self.status
         
         # 위험 상태 확인
         return self._check_risk_status()
@@ -87,7 +87,9 @@ class MaterialTracker:
         # 일정 이상 연속 감지 실패 시 추적 초기화 (사용자가 뒤돌아본 상태)
         if self.consecutive_misses >= 10:  # 약 1-2초 (초당 6-8프레임 기준)
             self.status = RiskSeverity.SAFE
+            self.first_alert_reference_size = None
             
+        return None
     
 
     def _check_risk_status(self):
@@ -124,8 +126,8 @@ class MaterialTracker:
                 if self.first_alert_reference_size:
                     second_alert_ratio = latest_size / self.first_alert_reference_size
                     
-                    # 1차 알림 발송 이후 추가로 15% 이상 더 접근 or 초기 대비 총 30% 이상 접근한 경우 2차 알림
-                    if second_alert_ratio >= 1.15 or current_approach_ratio >= SECOND_ALERT_THRESHOLD:
+                    # 1차 알림 발송 이후 추가로 25% 이상 더 접근 or 초기 대비 총 35% 이상 접근한 경우 2차 알림
+                    if second_alert_ratio >= 1.25 or current_approach_ratio >= SECOND_ALERT_THRESHOLD:
                         # 연속 프레임 카운터 증가
                         self.danger_frame_count += 1
                         
@@ -142,7 +144,7 @@ class MaterialTracker:
                     # 1차 알림 기준 크기가 없는 경우(비정상 상황)
                     self.danger_frame_count = 0
         
-        return RiskSeverity.SAFE
+        return self.status
 
 
 # 전체 트래커 관리
@@ -169,7 +171,16 @@ def get_rotated_rect_sides(rotated_box) -> Tuple[float, float]:
     return shorter_side, longer_side
 
 
-def detect_material_risks(tracked_materials: List[Dict[str, Any]], frame_count: int) -> List[Dict[str, Any]]:
+def get_highest_risk_level(material_trackers):
+    if not material_trackers:  # 딕셔너리가 비어있는 경우
+        return RiskSeverity.SAFE  # 기본값 0 (SAFE) 반환
+    
+    # 모든 MaterialTracker 객체의 status 값 중에서 최댓값 찾기
+    highest_risk = max(tracker.status for tracker in material_trackers.values())
+    return highest_risk
+
+
+def detect_material_risks(tracked_materials: List[Dict[str, Any]], frame_count: int) -> int:
     """
     건설 자재의 접근 위험을 감지합니다.
     작은 변의 길이 변화를 추적하여 카메라 방향으로 접근하는 자재를 감지합니다.
@@ -181,8 +192,9 @@ def detect_material_risks(tracked_materials: List[Dict[str, Any]], frame_count: 
     Returns:
         risk_level: 위험 감지 결과 알림 레벨
     """
-    risk_level = RiskSeverity.SAFE
+    risk_level = get_highest_risk_level(material_trackers)
     current_track_ids = set()
+    shorter_side = 0
     
     # 현재 프레임의 모든 자재에 대해 처리
     for material in tracked_materials:
