@@ -1,11 +1,18 @@
 package kr.kro.smartcap.smartcap_back.event.controller;
 
 import kr.kro.smartcap.smartcap_back.accident.entity.AccidentHistory;
+import kr.kro.smartcap.smartcap_back.accident.entity.AccidentVideo;
 import kr.kro.smartcap.smartcap_back.accident.repository.AccidentHistoryRepository;
+import kr.kro.smartcap.smartcap_back.accident.repository.AccidentVideoRepository;
+import kr.kro.smartcap.smartcap_back.accident.service.AccidentProcessingService;
+import kr.kro.smartcap.smartcap_back.alarm.entity.AlarmHistory;
+import kr.kro.smartcap.smartcap_back.alarm.repository.AlarmHistoryRepository;
+import kr.kro.smartcap.smartcap_back.alarm.service.AlarmProcessingService;
 import kr.kro.smartcap.smartcap_back.event.dto.*;
 
 import kr.kro.smartcap.smartcap_back.event.dto.stat.StatResponseDto;
 import kr.kro.smartcap.smartcap_back.event.service.EventService;
+import org.locationtech.jts.geom.Point;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.MediaType;
@@ -17,10 +24,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
@@ -29,9 +33,6 @@ import java.util.stream.Collectors;
 public class EventController {
 
     private final RedisTemplate<String, Object> redisTemplate;
-
-    // SSE 클라이언트 관리
-    private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
 
     @Autowired
     public EventController(RedisTemplate<String, Object> redisTemplate) {
@@ -42,7 +43,19 @@ public class EventController {
     private AccidentHistoryRepository accidentHistoryRepository;
 
     @Autowired
+    private AlarmHistoryRepository alarmHistoryRepository;
+
+    @Autowired
     private EventService eventService;
+
+    @Autowired
+    private AccidentProcessingService accidentProcessingService;
+
+    @Autowired
+    private AlarmProcessingService alarmProcessingService;
+
+    @Autowired
+    private AccidentVideoRepository accidentVideoRepository;
 
     /**
      * 대시보드용 데이터를 제공하는 엔드포인트
@@ -53,97 +66,162 @@ public class EventController {
         return eventService.getDashboardSummary();
     }
 
+
     /**
      * 지도 화면용 데이터를 제공하는 엔드포인트
      */
     @GetMapping("/map")
     public MapDataResponse getMapData() {
-        // 1. Redis 알람 데이터 가져오기
-        List<Map<String, Object>> alarmsList = (List<Map<String, Object>>) redisTemplate.opsForValue().get("alarms_stats");
-        if (alarmsList == null) {
-            alarmsList = new ArrayList<>();
+        // EventController.java의 getMapData 메서드 시작 부분에 추가
+        try {
+            // 테스트: 첫 번째 알람 레코드의 GPS 확인
+            Optional<AlarmHistory> testAlarm = alarmHistoryRepository.findById(1L);
+            if (testAlarm.isPresent() && testAlarm.get().getGps() != null) {
+                Point gps = testAlarm.get().getGps();
+                System.out.println("테스트 알람 GPS: X=" + gps.getX() + ", Y=" + gps.getY() + ", Type=" + gps.getGeometryType());
+            } else {
+                System.out.println("테스트 알람 GPS 없음");
+            }
+        } catch (Exception e) {
+            System.err.println("GPS 테스트 오류: " + e.getMessage());
+            e.printStackTrace();
         }
 
-        // 2. DB에서 사고 데이터 가져오기 (최근 7일 또는 전체 등 기준 정할 수 있음)
-        List<AccidentHistory> accidentEntities = accidentHistoryRepository.findAll(); // 또는 findRecentAlarms() 등으로 조건부
 
-        // 3. Redis 알람 → AlarmDTO
-        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
-        List<AlarmDTO> recentAlarms = convertToAlarmDTOs(alarmsList).stream()
-                .filter(alarm -> alarm.getCreated_at().isAfter(sevenDaysAgo))
-                .collect(Collectors.toList());
+        // 1. DB에서 최근 7일간의 알람 데이터 가져오기
+        List<AlarmDTO> recentAlarms = new ArrayList<>();
 
-        // 4. DB 사고 → AccidentDTO
-        List<AccidentDTO> accidentDTOs = accidentEntities.stream().map(entity -> {
-            AccidentDTO dto = new AccidentDTO();
-            dto.setAccident_id(entity.getAccidentId());
-            dto.setConstruction_sites_id(entity.getConstructionSitesId());
-            dto.setAlarm_type(entity.getAccidentType());
-            dto.setWeather(entity.getWeather());
-            dto.setCreated_at(entity.getCreatedAt().toLocalDateTime());
+        try {
+            // AlarmHistoryRepository의 findRecentAlarms 메서드를 사용해 최근 알람을 가져옴
+            List<AlarmHistory> recentAlarmEntities = alarmHistoryRepository.findRecentAlarms(100); // 최근 100개 알람
 
-            // GPS
-            if (entity.getGps() != null) {
-                GpsDTO gps = new GpsDTO();
-                gps.setType("Point");
-                gps.setCoordinates(new double[]{entity.getGps().getX(), entity.getGps().getY()});
-                dto.setGps(gps);
-            }
+            // 7일 이내의 알람만 필터링
+            LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
 
-            // 필요 시, 영상 ID, URL은 추후 join 해서 추가 가능
-            return dto;
-        }).collect(Collectors.toList());
+            recentAlarms = recentAlarmEntities.stream()
+                    .filter(alarm -> {
+                        LocalDateTime alarmTime = alarm.getCreatedAt().toLocalDateTime();
+                        return alarmTime.isAfter(sevenDaysAgo);
+                    })
+                    .map(this::convertToAlarmDTO)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            System.err.println("Error fetching alarm data: " + e.getMessage());
+            e.printStackTrace();
+        }
 
-        // 5. 응답 반환
+        // 2. DB에서 사고 데이터 가져오기
+        List<AccidentDTO> accidentDTOs = new ArrayList<>();
+
+        try {
+            List<AccidentHistory> accidentEntities = accidentHistoryRepository.findAll();
+
+            // 사고 영상 데이터 미리 로드
+            List<AccidentVideo> allVideos = accidentVideoRepository.findAll();
+            Map<Long, AccidentVideo> videoMap = allVideos.stream()
+                    .collect(Collectors.toMap(
+                            video -> video.getAccidentId(),
+                            video -> video,
+                            (v1, v2) -> v1 // 충돌 시 첫 번째 값 사용
+                    ));
+
+            accidentDTOs = accidentEntities.stream()
+                    .map(accident -> convertToAccidentDTO(accident, videoMap))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            System.err.println("Error fetching accident data: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        // 3. 응답 반환
         return MapDataResponse.builder()
                 .recentAlarms(recentAlarms)
                 .fallingAccidents(accidentDTOs)
                 .build();
     }
 
-
     /**
-     * SSE 연결을 설정하는 엔드포인트
+     * AlarmHistory 엔티티를 AlarmDTO로 변환
      */
-    @GetMapping(value = "/alarms", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamAlarms() {
-        SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
+    private AlarmDTO convertToAlarmDTO(AlarmHistory alarm) {
+        AlarmDTO dto = new AlarmDTO();
+        dto.setAlarm_id(alarm.getAlarmId());
+        dto.setConstruction_sites_id(alarm.getConstructionSitesId());
+        // device_id 필드는 DB에 없으므로 설정하지 않음
+        dto.setAlarm_type(alarm.getAlarmType());
+        dto.setRecognized_type(alarm.getRecognizedType());
+        dto.setWeather(alarm.getWeather());
+        dto.setCreated_at(alarm.getCreatedAt().toLocalDateTime());
 
-        emitters.add(emitter);
+        // 하드코딩된 추가 정보 (SSE와 일치하도록)
+        dto.setSite_name("역삼역 공사장"); // 현장 이름 하드코딩
+        dto.setConstruction_status("진행중"); // 현장 상태 하드코딩
 
-        // 연결 종료 시 emitter 제거
-        emitter.onCompletion(() -> emitters.remove(emitter));
-        emitter.onTimeout(() -> emitters.remove(emitter));
-        emitter.onError(e -> emitters.remove(emitter));
-
-        try {
-            emitter.send(SseEmitter.event()
-                    .name("connect")
-                    .data("Connected to SSE stream"));
-        } catch (IOException e) {
-            emitter.completeWithError(e);
+        // GPS 정보 설정
+        if (alarm.getGps() != null) {
+            GpsDTO gps = new GpsDTO();
+            gps.setType("Point");
+            gps.setCoordinates(new double[]{alarm.getGps().getX(), alarm.getGps().getY()});
+            dto.setGps(gps);
+        } else {
+            // 기본 GPS 값 설정 (데이터가 없는 경우)
+            GpsDTO gps = new GpsDTO();
+            gps.setType("Point");
+            gps.setCoordinates(new double[]{126.9780, 37.5665}); // 서울시청 좌표
+            dto.setGps(gps);
         }
 
-        return emitter;
+        return dto;
     }
 
     /**
-     * 새 알람 브로드캐스트
+     * AccidentHistory 엔티티를 AccidentDTO로 변환
+     * @param accident 사고 이력 엔티티
+     * @param videoMap 사고 ID를 키로 하는 비디오 맵 (성능 향상을 위해 미리 로드)
      */
-    public void broadcastAlarm(AlarmDTO alarm) {
-        List<SseEmitter> deadEmitters = new CopyOnWriteArrayList<>();
+    private AccidentDTO convertToAccidentDTO(AccidentHistory accident, Map<Long, AccidentVideo> videoMap) {
+        AccidentDTO dto = new AccidentDTO();
 
-        emitters.forEach(emitter -> {
-            try {
-                emitter.send(SseEmitter.event()
-                        .name("message")
-                        .data(alarm));
-            } catch (IOException e) {
-                deadEmitters.add(emitter);
-            }
-        });
+        // AlarmDTO의 기본 필드 설정
+        dto.setAlarm_id(accident.getAccidentId()); // 사고 ID를 알람 ID로 사용
+        dto.setAccident_id(accident.getAccidentId());
+        dto.setConstruction_sites_id(accident.getConstructionSitesId());
+        // device_id 필드는 DB에 없으므로 설정하지 않음
+        dto.setAlarm_type("Accident"); // 사고는 항상 "Accident" 타입
+        dto.setRecognized_type(accident.getAccidentType()); // 사고 유형을 인식 유형으로 사용
+        dto.setWeather(accident.getWeather() != null ? accident.getWeather() : "맑음");
+        dto.setCreated_at(accident.getCreatedAt().toLocalDateTime());
 
-        emitters.removeAll(deadEmitters);
+        // 하드코딩된 추가 정보 (SSE와 일치하도록)
+        dto.setSite_name("역삼역 공사장"); // 현장 이름 하드코딩
+        dto.setConstruction_status("진행중"); // 현장 상태 하드코딩
+
+        // GPS 정보 설정
+        if (accident.getGps() != null) {
+            GpsDTO gps = new GpsDTO();
+            gps.setType("Point");
+            gps.setCoordinates(new double[]{accident.getGps().getX(), accident.getGps().getY()});
+            dto.setGps(gps);
+        } else {
+            // 기본 GPS 값 설정 (데이터가 없는 경우)
+            GpsDTO gps = new GpsDTO();
+            gps.setType("Point");
+            gps.setCoordinates(new double[]{126.9780, 37.5665}); // 서울시청 좌표
+            dto.setGps(gps);
+        }
+
+        // 비디오 정보 설정 (미리 로드된 맵 사용)
+        AccidentVideo video = videoMap.get(accident.getAccidentId());
+        if (video != null) {
+            dto.setAccident_video_id(video.getAccidentVideoId());
+            dto.setVideo_url(video.getVideoUrl());
+        } else {
+            // 기본 비디오 정보 설정 (데이터가 없는 경우)
+            dto.setAccident_video_id(accident.getAccidentId() + 500); // 임의의 비디오 ID
+            dto.setVideo_url("/sample-fall-video.mp4"); // 기본 샘플 비디오 URL
+        }
+
+        return dto;
     }
 
     // 유틸리티 메소드: Map 리스트를 AlarmDTO 리스트로 변환
@@ -197,7 +275,6 @@ public class EventController {
             accident.setAlarm_id(alarm.getAlarm_id());
             accident.setConstruction_sites_id(alarm.getConstruction_sites_id());
             accident.setWeather_id(alarm.getWeather_id());
-            accident.setDevice_id(alarm.getDevice_id());
             accident.setGps(alarm.getGps());
             accident.setAlarm_type(alarm.getAlarm_type());
             accident.setRecognized_type(alarm.getRecognized_type());
