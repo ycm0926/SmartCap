@@ -1,5 +1,6 @@
 package kr.kro.smartcap.smartcap_back.event.controller;
 
+import kr.kro.smartcap.smartcap_back.accident.dto.AccidentHistoryRedisDto;
 import kr.kro.smartcap.smartcap_back.accident.entity.AccidentHistory;
 import kr.kro.smartcap.smartcap_back.accident.entity.AccidentVideo;
 import kr.kro.smartcap.smartcap_back.accident.repository.AccidentHistoryRepository;
@@ -9,6 +10,7 @@ import kr.kro.smartcap.smartcap_back.alarm.entity.AlarmHistory;
 import kr.kro.smartcap.smartcap_back.alarm.repository.AlarmHistoryRepository;
 import kr.kro.smartcap.smartcap_back.alarm.service.AlarmProcessingService;
 import kr.kro.smartcap.smartcap_back.event.dto.*;
+import kr.kro.smartcap.smartcap_back.alarm.dto.AlarmHistoryRedisDto;
 
 import kr.kro.smartcap.smartcap_back.event.dto.stat.StatResponseDto;
 import kr.kro.smartcap.smartcap_back.event.service.EventService;
@@ -22,7 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.security.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -72,72 +78,282 @@ public class EventController {
      */
     @GetMapping("/map")
     public MapDataResponse getMapData() {
-        // EventController.java의 getMapData 메서드 시작 부분에 추가
-        try {
-            // 테스트: 첫 번째 알람 레코드의 GPS 확인
-            Optional<AlarmHistory> testAlarm = alarmHistoryRepository.findById(1L);
-            if (testAlarm.isPresent() && testAlarm.get().getGps() != null) {
-                Point gps = testAlarm.get().getGps();
-                System.out.println("테스트 알람 GPS: X=" + gps.getX() + ", Y=" + gps.getY() + ", Type=" + gps.getGeometryType());
-            } else {
-                System.out.println("테스트 알람 GPS 없음");
-            }
-        } catch (Exception e) {
-            System.err.println("GPS 테스트 오류: " + e.getMessage());
-            e.printStackTrace();
-        }
-
-
-        // 1. DB에서 최근 7일간의 알람 데이터 가져오기
+        // 기존 알람 데이터 목록 초기화
         List<AlarmDTO> recentAlarms = new ArrayList<>();
 
-        try {
-            // AlarmHistoryRepository의 findRecentAlarms 메서드를 사용해 최근 알람을 가져옴
-            List<AlarmHistory> recentAlarmEntities = alarmHistoryRepository.findRecentAlarms(100); // 최근 100개 알람
-
-            // 7일 이내의 알람만 필터링
-            LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
-
-            recentAlarms = recentAlarmEntities.stream()
-                    .filter(alarm -> {
-                        LocalDateTime alarmTime = alarm.getCreatedAt().toLocalDateTime();
-                        return alarmTime.isAfter(sevenDaysAgo);
-                    })
-                    .map(this::convertToAlarmDTO)
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            System.err.println("Error fetching alarm data: " + e.getMessage());
-            e.printStackTrace();
-        }
-
-        // 2. DB에서 사고 데이터 가져오기
-        List<AccidentDTO> accidentDTOs = new ArrayList<>();
+        // 현재 날짜 기준 7일 전 날짜 계산
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+        LocalDate today = LocalDate.now();
 
         try {
+            // 1. Redis에서 오늘의 사고 데이터 가져오기
+            Set<String> accidentRedisKeys = redisTemplate.keys("accident:*:" + today);
+
+            if (accidentRedisKeys != null && !accidentRedisKeys.isEmpty()) {
+                for (String key : accidentRedisKeys) {
+                    List<Object> todayAccidentsObj = redisTemplate.opsForList().range(key, 0, -1);
+                    if (todayAccidentsObj != null) {
+                        for (Object obj : todayAccidentsObj) {
+                            // Redis DTO를 AlarmDTO로 변환
+                            AlarmDTO alarmDto = convertRedisObjectToAlarmDTO(obj);
+                            if (alarmDto != null) {
+                                // 고유한 ID 생성 (timestamp + constructionSiteId + hashCode)
+                                long timestamp = System.currentTimeMillis();
+                                int hashCode = (alarmDto.getAlarm_type() + alarmDto.getCreated_at().toString()).hashCode();
+                                alarmDto.setAlarm_id(timestamp * 100 + Math.abs(hashCode % 100));
+
+                                recentAlarms.add(alarmDto);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Redis에서 오늘의 알람 데이터 가져오기 (기존 코드 유지)
+            Set<String> alarmRedisKeys = redisTemplate.keys("alarm:*:" + today);
+
+            if (alarmRedisKeys != null && !alarmRedisKeys.isEmpty()) {
+                for (String key : alarmRedisKeys) {
+                    List<Object> todayAlarmsObj = redisTemplate.opsForList().range(key, 0, -1);
+                    List<AlarmHistoryRedisDto> todayAlarms = new ArrayList<>();
+
+                    if (todayAlarmsObj != null) {
+                        for (Object obj : todayAlarmsObj) {
+                            if (obj instanceof AlarmHistoryRedisDto) {
+                                todayAlarms.add((AlarmHistoryRedisDto) obj);
+                            } else if (obj instanceof Map) {
+                                // Map으로 저장된 경우 수동 변환
+                                Map<String, Object> map = (Map<String, Object>) obj;
+                                AlarmHistoryRedisDto dto = new AlarmHistoryRedisDto();
+
+                                if (map.containsKey("constructionSitesId")) {
+                                    dto.setConstructionSitesId(Long.valueOf(map.get("constructionSitesId").toString()));
+                                }
+                                if (map.containsKey("alarmType")) {
+                                    dto.setAlarmType((String) map.get("alarmType"));
+                                }
+                                if (map.containsKey("recognizedType")) {
+                                    dto.setRecognizedType((String) map.get("recognizedType"));
+                                }
+                                if (map.containsKey("weather")) {
+                                    dto.setWeather((String) map.get("weather"));
+                                }
+                                if (map.containsKey("createdAt")) {
+                                    Object createdAtObj = map.get("createdAt");
+                                    if (createdAtObj instanceof java.sql.Timestamp) {
+                                        dto.setCreatedAt((java.sql.Timestamp) createdAtObj);
+                                    } else if (createdAtObj instanceof String) {
+                                        try {
+                                            Instant instant = Instant.parse((String) createdAtObj);
+                                            dto.setCreatedAt(new java.sql.Timestamp(instant.toEpochMilli()));
+                                        } catch (Exception e) {
+                                            dto.setCreatedAt(new java.sql.Timestamp(System.currentTimeMillis()));
+                                        }
+                                    }
+                                }
+                                if (map.containsKey("lat")) {
+                                    dto.setLat(Double.parseDouble(map.get("lat").toString()));
+                                }
+                                if (map.containsKey("lng")) {
+                                    dto.setLng(Double.parseDouble(map.get("lng").toString()));
+                                }
+
+                                todayAlarms.add(dto);
+                            }
+                        }
+                    }
+
+                    if (todayAlarms != null && !todayAlarms.isEmpty()) {
+                        for (AlarmHistoryRedisDto redisDto : todayAlarms) {
+                            // Redis DTO를 AlarmDTO로 변환
+                            AlarmDTO alarmDto = new AlarmDTO();
+
+                            // 고유한 ID 생성
+                            long timestamp = System.currentTimeMillis();
+                            int hashCode = (redisDto.getAlarmType() + redisDto.getCreatedAt().toString()).hashCode();
+                            alarmDto.setAlarm_id(timestamp * 100 + Math.abs(hashCode % 100));
+
+                            alarmDto.setConstruction_sites_id(redisDto.getConstructionSitesId());
+
+                            // GPS 데이터 설정
+                            if (redisDto.getLat() != 0.0 && redisDto.getLng() != 0.0) {
+                                GpsDTO gpsDto = new GpsDTO();
+                                gpsDto.setType("Point");
+                                gpsDto.setCoordinates(new double[] {redisDto.getLng(), redisDto.getLat()});
+                                alarmDto.setGps(gpsDto);
+                            }
+
+                            alarmDto.setAlarm_type(redisDto.getAlarmType());
+                            alarmDto.setRecognized_type(redisDto.getRecognizedType());
+                            alarmDto.setWeather(redisDto.getWeather());
+
+                            // 날짜 변환
+                            if (redisDto.getCreatedAt() != null) {
+                                alarmDto.setCreated_at(redisDto.getCreatedAt().toLocalDateTime());
+                            } else {
+                                alarmDto.setCreated_at(LocalDateTime.now());
+                            }
+
+                            // 추가 정보
+                            alarmDto.setSite_name("역삼역 공사장");
+                            alarmDto.setConstruction_status("진행중");
+
+                            recentAlarms.add(alarmDto);
+                        }
+                    }
+                }
+            }
+
+            // 3. DB에서 과거 사고 데이터 가져오기 (최근 7일 데이터만)
             List<AccidentHistory> accidentEntities = accidentHistoryRepository.findAll();
 
-            // 사고 영상 데이터 미리 로드
-            List<AccidentVideo> allVideos = accidentVideoRepository.findAll();
-            Map<Long, AccidentVideo> videoMap = allVideos.stream()
-                    .collect(Collectors.toMap(
-                            video -> video.getAccidentId(),
-                            video -> video,
-                            (v1, v2) -> v1 // 충돌 시 첫 번째 값 사용
-                    ));
+            // 4. DB 사고 데이터를 AccidentDTO로 변환
+            List<AccidentDTO> accidentDTOs = accidentEntities.stream().map(entity -> {
+                AccidentDTO dto = new AccidentDTO();
+                dto.setAccident_id(entity.getAccidentId());
+                dto.setConstruction_sites_id(entity.getConstructionSitesId());
+                dto.setAlarm_type(entity.getAccidentType());
+                dto.setWeather(entity.getWeather());
+                dto.setCreated_at(entity.getCreatedAt().toLocalDateTime());
 
-            accidentDTOs = accidentEntities.stream()
-                    .map(accident -> convertToAccidentDTO(accident, videoMap))
+                // GPS
+                if (entity.getGps() != null) {
+                    GpsDTO gps = new GpsDTO();
+                    gps.setType("Point");
+                    gps.setCoordinates(new double[]{entity.getGps().getX(), entity.getGps().getY()});
+                    dto.setGps(gps);
+                }
+
+                return dto;
+            }).collect(Collectors.toList());
+
+            // 5. 최종 응답 생성 전 필터링 및 제한
+            List<AlarmDTO> filteredAlarms = recentAlarms.stream()
+                    .filter(alarm -> alarm.getCreated_at() != null && alarm.getCreated_at().isAfter(sevenDaysAgo))
+                    .limit(50) // 최대 50개로 제한
                     .collect(Collectors.toList());
-        } catch (Exception e) {
-            System.err.println("Error fetching accident data: " + e.getMessage());
-            e.printStackTrace();
-        }
 
-        // 3. 응답 반환
-        return MapDataResponse.builder()
-                .recentAlarms(recentAlarms)
-                .fallingAccidents(accidentDTOs)
-                .build();
+            return MapDataResponse.builder()
+                    .recentAlarms(filteredAlarms)
+                    .fallingAccidents(accidentDTOs)
+                    .build();
+        } catch (Exception e) {
+            // 오류 로깅
+            System.err.println("지도 데이터 조회 중 오류 발생: " + e.getMessage());
+            e.printStackTrace();
+
+            // 빈 응답 반환
+            return MapDataResponse.builder()
+                    .recentAlarms(new ArrayList<>())
+                    .fallingAccidents(new ArrayList<>())
+                    .build();
+        }
+    }
+
+    // Redis 객체를 AlarmDTO로 변환하는 헬퍼 메소드
+    private AlarmDTO convertRedisObjectToAlarmDTO(Object obj) {
+        try {
+            if (obj instanceof AccidentHistoryRedisDto) {
+                // AccidentHistoryRedisDto 처리
+                AccidentHistoryRedisDto redisDto = (AccidentHistoryRedisDto) obj;
+                AlarmDTO alarmDto = new AlarmDTO();
+
+                alarmDto.setConstruction_sites_id(redisDto.getConstructionSitesId());
+
+                // GPS 데이터 설정
+                if (redisDto.getLat() != 0.0 && redisDto.getLng() != 0.0) {
+                    GpsDTO gpsDto = new GpsDTO();
+                    gpsDto.setType("Point");
+                    gpsDto.setCoordinates(new double[] {redisDto.getLng(), redisDto.getLat()});
+                    alarmDto.setGps(gpsDto);
+                }
+
+                alarmDto.setAlarm_type("Accident");
+                alarmDto.setRecognized_type(redisDto.getAccidentType());
+                alarmDto.setWeather(redisDto.getWeather());
+
+                // 날짜 변환
+                if (redisDto.getCreatedAt() != null) {
+                    alarmDto.setCreated_at(redisDto.getCreatedAt().toLocalDateTime());
+                } else {
+                    alarmDto.setCreated_at(LocalDateTime.now());
+                }
+
+                // 추가 정보
+                alarmDto.setSite_name("역삼역 공사장");
+                alarmDto.setConstruction_status("진행중");
+
+                return alarmDto;
+            } else if (obj instanceof Map) {
+                // Map으로 저장된 경우 처리
+                Map<String, Object> map = (Map<String, Object>) obj;
+                AlarmDTO alarmDto = new AlarmDTO();
+
+                if (map.containsKey("constructionSitesId")) {
+                    alarmDto.setConstruction_sites_id(Long.valueOf(map.get("constructionSitesId").toString()));
+                }
+
+                // GPS 데이터 설정
+                double lat = 0, lng = 0;
+                if (map.containsKey("lat")) {
+                    lat = Double.parseDouble(map.get("lat").toString());
+                }
+                if (map.containsKey("lng")) {
+                    lng = Double.parseDouble(map.get("lng").toString());
+                }
+
+                if (lat != 0 && lng != 0) {
+                    GpsDTO gpsDto = new GpsDTO();
+                    gpsDto.setType("Point");
+                    gpsDto.setCoordinates(new double[] {lng, lat});
+                    alarmDto.setGps(gpsDto);
+                }
+
+                if (map.containsKey("alarmType")) {
+                    alarmDto.setAlarm_type((String) map.get("alarmType"));
+                } else if (map.containsKey("accidentType")) {
+                    alarmDto.setAlarm_type("Accident");
+                } else {
+                    alarmDto.setAlarm_type("Warning");
+                }
+
+                if (map.containsKey("recognizedType")) {
+                    alarmDto.setRecognized_type((String) map.get("recognizedType"));
+                } else if (map.containsKey("accidentType")) {
+                    alarmDto.setRecognized_type((String) map.get("accidentType"));
+                }
+
+                if (map.containsKey("weather")) {
+                    alarmDto.setWeather((String) map.get("weather"));
+                }
+
+                // 날짜 설정
+                if (map.containsKey("createdAt")) {
+                    Object createdAtObj = map.get("createdAt");
+                    if (createdAtObj instanceof java.sql.Timestamp) {
+                        alarmDto.setCreated_at(((java.sql.Timestamp) createdAtObj).toLocalDateTime());
+                    } else if (createdAtObj instanceof String) {
+                        try {
+                            Instant instant = Instant.parse((String) createdAtObj);
+                            alarmDto.setCreated_at(LocalDateTime.ofInstant(instant, ZoneId.systemDefault()));
+                        } catch (Exception e) {
+                            alarmDto.setCreated_at(LocalDateTime.now());
+                        }
+                    }
+                } else {
+                    alarmDto.setCreated_at(LocalDateTime.now());
+                }
+
+                // 추가 정보
+                alarmDto.setSite_name("역삼역 공사장");
+                alarmDto.setConstruction_status("진행중");
+
+                return alarmDto;
+            }
+        } catch (Exception e) {
+            System.err.println("Redis 객체 변환 중 오류: " + e.getMessage());
+        }
+        return null;
     }
 
     /**
