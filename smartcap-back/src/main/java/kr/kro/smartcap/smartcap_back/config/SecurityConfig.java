@@ -1,5 +1,6 @@
 package kr.kro.smartcap.smartcap_back.config;
 
+import kr.kro.smartcap.smartcap_back.user.service.CustomUserDetailsService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -19,6 +20,12 @@ import java.util.Arrays;
 @Configuration
 public class SecurityConfig {
 
+    private final CustomUserDetailsService customUserDetailsService;
+
+    public SecurityConfig(CustomUserDetailsService customUserDetailsService) {
+        this.customUserDetailsService = customUserDetailsService;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -33,20 +40,18 @@ public class SecurityConfig {
                         // 나머지는 인증 필요
                         .anyRequest().authenticated()
                 )
-                // CSRF 보호 비활성화 (API 서버의 경우 필요에 따라)
                 .csrf(AbstractHttpConfigurer::disable)
-                // 폼 로그인과 HTTP Basic 인증 활성화
                 .formLogin(Customizer.withDefaults())
                 .httpBasic(Customizer.withDefaults())
-                // Remember-Me 기능 추가
                 .rememberMe(rememberMe -> rememberMe
                         .tokenValiditySeconds(30 * 24 * 60 * 60) // 30일 동안 로그인 유지
                         .key("uniqueAndSecret") // 고유한 키 지정 (추후 환경변수로 보안 업그레이드 필요)
                 )
-                // 기본 session 기반 인증 사용(IF_REQUIRED는 필요 시 세션 생성)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                );
+                )
+                // 커스텀 UserDetailsService 설정
+                .userDetailsService(customUserDetailsService);
 
         return http.build();
     }
@@ -61,10 +66,10 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
 //        config.setAllowedOriginPatterns(Arrays.asList("http://localhost:5173")); // 프론트엔드 주소
-        config.setAllowedOriginPatterns(Arrays.asList("*")); //테스트용 전체 경로 허용
+        config.setAllowedOriginPatterns(Arrays.asList("*")); // 테스트용 전체 경로 허용
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
-        config.setExposedHeaders(Arrays.asList("Authorization"));  // 노출할 헤더
+        config.setExposedHeaders(Arrays.asList("Authorization"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);  // 모든 경로에 대해 CORS 설정 적용
         return source;
