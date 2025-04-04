@@ -13,7 +13,7 @@ from starlette.websockets import WebSocketState
 from app.core.save_img import save_image, create_image_folder
 from app.core.save_video import create_video_from_images
 from app.core.redis_client import redis_client
-from app.models.run_model import run_model
+from app.services.detection_orchestrator import run_model
 from app.api import state
 
 # preprocess_frame 함수는 어안렌즈 보정과 90도 좌측 회전을 내부에서 수행하도록 수정됨
