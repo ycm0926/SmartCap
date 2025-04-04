@@ -59,19 +59,13 @@ async def notify_alarm(device_id: int, alarm_type: int):
         logger.info(f"Alarm notify sent for device {device_id} with type {alarm_type}")
     except Exception as e:
         logger.error(f"Alarm notify failed (fire-and-forget): {e}")
-
 async def handle_video_device(websocket, device_id: int):
     state.clients[device_id] = websocket
     logger.info(f"[Device {device_id}] Video device connected")
     folder = create_image_folder()
     logger.info("create img")
     img_count = 1
-    # 고해상도 타이머: time.perf_counter() 사용
-    start_time = time.perf_counter()
-    last_frame_time = start_time
-    # run_model() 이전 호출 시각 (첫 프레임은 start_time 기준)
-    last_model_time = start_time
-
+    # run_model() 호출 시 캡쳐 간격을 사용
     try:
         while True:
             if websocket.application_state == WebSocketState.DISCONNECTED:
@@ -80,10 +74,17 @@ async def handle_video_device(websocket, device_id: int):
 
             data = await websocket.receive()
             frame = None
+            capture_interval = None  # ms 단위 캡쳐 간격
 
             if "bytes" in data:
-                frame_data = np.frombuffer(data["bytes"], dtype=np.uint8)
-                # offload cv2.imdecode to a thread
+                binary_data = data["bytes"]
+                if len(binary_data) < 4:
+                    logger.error("Received binary data too short")
+                    continue
+                # 버퍼의 앞 4바이트에서 캡쳐 간격(ms, little-endian) 추출
+                capture_interval = int.from_bytes(binary_data[:4], byteorder='little')
+                image_data = binary_data[4:]
+                frame_data = np.frombuffer(image_data, dtype=np.uint8)
                 frame = await asyncio.to_thread(cv2.imdecode, frame_data, cv2.IMREAD_COLOR)
             elif "text" in data:
                 text_data = data["text"]
@@ -101,17 +102,21 @@ async def handle_video_device(websocket, device_id: int):
             if frame is not None:
                 # 어안렌즈 보정 및 90도 좌측 회전
                 processed_frame = await asyncio.to_thread(preprocess_frame, frame)
-                # 실제 측정된 딜레이 계산 (소숫점 둘째자리까지)
-                current_time = time.perf_counter()
-                time_diff = round(current_time - last_model_time, 2)
-                last_model_time = current_time
-                logger.info(f"딜레이 {time_diff}")
+                # 캡쳐 간격을 초 단위 실수로 변환 (예: 100ms -> 0.10초)
+                # 만약 ms 그대로 사용하고 싶으면 capture_interval로 사용
+                if capture_interval is not None:
+                    time_diff = round(capture_interval / 1000.0, 2)
+                    logger.info(f"캡쳐 간격: {time_diff} 초")
+                else:
+                    # text 데이터 등으로 수신한 경우 기존 방식 유지 (혹은 기본값 사용)
+                    time_diff = 0.0
+                    logger.info("캡쳐 간격 값이 존재하지 않습니다. 기본값 0.0 초 사용")
                 
-                # run_model 호출 시 두 번째 매개변수로 실제 측정된 time_diff 전달
+                # run_model 호출 시 두 번째 매개변수로 캡쳐 간격 전달
                 result = await asyncio.to_thread(run_model, processed_frame, time_diff)
                 logger.info(f"[Device {device_id}] run_model result: {result}")
                 
-                # 이미지 저장 및 Redis 저장을 fire-and-forget 방식으로 처리하여 메인 루프 지연 최소화
+                # 이미지 저장 및 Redis 저장 (fire-and-forget)
                 asyncio.create_task(asyncio.to_thread(save_image, folder, processed_frame, img_count))
                     
                 ret, buf = cv2.imencode('.jpg', processed_frame)
@@ -139,7 +144,6 @@ async def handle_video_device(websocket, device_id: int):
                     logger.info(f"[Device {device_id}] run_model result is 0, no notification sent")
                     
                 img_count += 1
-                last_frame_time = time.perf_counter()
             else:
                 logger.warning(f"[Device {device_id}] No valid frame data received")
     except asyncio.CancelledError:
@@ -153,5 +157,5 @@ async def handle_video_device(websocket, device_id: int):
                 await websocket.close()
         except Exception as close_err:
             logger.warning(f"[Device {device_id}] Error closing websocket: {close_err}")
-        duration = last_frame_time - start_time
+        duration = time.time()  # 영상 녹화 종료 시각
         await asyncio.to_thread(create_video_from_images, folder, duration)
