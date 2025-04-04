@@ -31,7 +31,7 @@ auth_headers = {"Authorization": f"Basic {encoded_credentials}"}
 
 # 스프링 서버로 사고 정보를 전송하는 함수 (비동기, fire-and-forget)
 async def notify_accident(device_id: int, accident_type: int):
-    url = f"http://{BACKEND_SERVER_HOST}/api/accidents/{device_id}/notify"  # device_id 사용
+    url = f"http://{BACKEND_SERVER_HOST}/api/accident/{device_id}/notify"  # device_id 사용
     payload = {
         "constructionSitesId": 1,
         "accidentType": accident_type
