@@ -28,9 +28,7 @@ def run_risk_detection_pipeline(frame, frame_count):
             4-5: 낙상 관련 (4: 1차 알림, 5: 2차 알림)
             7-8: 차량 관련 (7: 1차 알림, 8: 2차 알림)
     """
-    # 현재 프레임 번호
-    frame_count = frame_count
-    
+
     # 1. YOLO 모델로 객체 감지
     yolo_results = run_inference(frame)
     
@@ -75,8 +73,8 @@ def run_risk_detection_pipeline(frame, frame_count):
     material_stage = RiskTypeOffset.MATERIAL + material_risks if material_risks > RiskSeverity.SAFE else RiskSeverity.SAFE
     fall_zone_stage = RiskTypeOffset.FALL_ZONE + fall_zone_risks if fall_zone_risks > RiskSeverity.SAFE else RiskSeverity.SAFE
     vehicle_stage = RiskTypeOffset.VEHICLE + vehicle_risks if vehicle_risks > RiskSeverity.SAFE else RiskSeverity.SAFE
-        
+    
     # 모든 위험 수준 중 최고값 찾기
-    max_risk_severity = max(material_stage, fall_zone_stage, vehicle_stage, RiskSeverity.SAFE)
+    max_risk_severity = max(material_stage, fall_zone_stage, vehicle_stage)
     
     return max_risk_severity
