@@ -59,8 +59,8 @@ export default function AlarmSSE() {
   });
   
   // 하트비트 체크를 위한 타이머 참조
-  const alarmHeartbeatTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const accidentHeartbeatTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const alarmHeartbeatTimerRef = useRef<number | null>(null);
+  const accidentHeartbeatTimerRef = useRef<number | null>(null);
   
   // 중복 알람 체크 함수
   const isDuplicateAlarm = (alarmId: string | number): boolean => {
@@ -232,7 +232,7 @@ export default function AlarmSSE() {
       
       // 알람 버퍼링
       let alarmBuffer: any[] = [];
-      let bufferTimer: NodeJS.Timeout | null = null;
+      let bufferTimer: number | null = null;
       
       // 버퍼 처리 함수
       const processAlarmBuffer = () => {
@@ -394,7 +394,7 @@ export default function AlarmSSE() {
       
       // 사고 버퍼링
       let accidentBuffer: any[] = [];
-      let bufferTimer: NodeJS.Timeout | null = null;
+      let bufferTimer: number | null = null;
       
       // 버퍼 처리 함수
       const processAccidentBuffer = () => {
