@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -24,6 +25,7 @@ public class CompatAlarmSseController {
     /**
      * 프론트엔드 코드와 호환되는 SSE 구독 엔드포인트
      */
+    @CrossOrigin(origins = "https://j12a102.p.ssafy.io")
     @GetMapping(value = "/alarms", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter subscribeCompat() {
         String clientId = UUID.randomUUID().toString();
