@@ -227,7 +227,7 @@ export default function AlarmSSE() {
     try {
       console.log("🔄 알람 SSE 연결 시도...");
       
-      const es = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/alarms`);
+      const es = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/sse/alarms`);
       alarmConnectionRef.current.eventSource = es;
       
       // 알람 버퍼링
