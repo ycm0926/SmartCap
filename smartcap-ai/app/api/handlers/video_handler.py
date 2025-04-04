@@ -108,7 +108,6 @@ async def handle_video_device(websocket, device_id: int):
 
                 # run_model 호출 시 두 번째 매개변수로 time_diff 전달
                 result = await asyncio.to_thread(run_model, processed_frame, time_diff)
-                logger.info(f"[Device {device_id}] run_model result: {result}")
                 
                 # 이미지 저장 및 Redis 저장
                 await asyncio.to_thread(save_image, folder, processed_frame, img_count)
