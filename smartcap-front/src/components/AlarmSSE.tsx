@@ -87,5 +87,5 @@ export default function AlarmSSE() {
     };
   }, [addAlarm, navigate, location.pathname]);
 
-  return null;
-}
+//   return null;
+// }
