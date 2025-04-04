@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useAuth } from '../store/AuthContext.jsx';
 import Login from '../pages/Login';
 import Dashboard from '../pages/Dashboard';
-import AlarmSSE from '../components/AlarmSSE.js';;
+// import AlarmSSE from '../components/AlarmSSE.js';;
 import MapPage from '../pages/MapPage';
 
 // Protected route component
@@ -24,7 +24,7 @@ const ProtectedRoute = ({ children }) => {
 const AppRouter = () => {
   return (
     <Router>
-      <AlarmSSE/>
+      {/* <AlarmSSE/> */}
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route 

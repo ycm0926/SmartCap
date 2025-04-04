@@ -1,8 +1,9 @@
 // src/pages/Dashboard.jsx
 
-import React from 'react';
+import {React, useEffect} from 'react';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
+import { useStatsStore } from '../store/statsStore';
 
 import { MonthlyDangerRanking } from '../components/dashboard/MonthlyDangerRanking.jsx';
 import { RealtimeAlertBoard } from '../components/dashboard/RealtimeAlertBoard.jsx';
@@ -13,7 +14,54 @@ import { Map as MapIcon } from 'lucide-react'; // ✅ 아이콘 import
 const Dashboard = () => {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const setAllStats = useStatsStore((state) => state.setAllStats);
+  const updateStat = useStatsStore((state) => state.updateStat);
 
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      const res = await fetch('http://localhost:8080/api/events/dashboard'); // 실제 엔드포인트로 교체
+      const data = await res.json();
+      console.log("data: ",data);
+      setAllStats(data);
+    };
+
+    fetchStats();
+  }, []);
+
+  useEffect(() => {
+    const eventSource = new EventSource('http://localhost:8080/api/sse');
+  
+    const updateStat = useStatsStore.getState().updateStat;
+  
+    eventSource.onopen = () => {
+      console.log("✅ SSE 연결 성공");
+    };
+  
+    eventSource.addEventListener('stat_update', (event) => {
+      console.log("📦 stat_update 이벤트 수신:", event.data);
+      try {
+        const update = JSON.parse(event.data);
+        updateStat(update); // ✅ 안전하게 호출됨
+  
+        const newState = useStatsStore.getState(); // 🧠 전체 상태 가져오기
+        console.log("🆕 업데이트된 상태:", newState);
+      } catch (err) {
+        console.error("❌ JSON 파싱 실패", err);
+      }
+    });
+  
+    eventSource.onerror = (err) => {
+      console.error("🚨 SSE 오류 발생:", err);
+    };
+  
+    return () => {
+      console.log("👋 SSE 연결 종료");
+      eventSource.close();
+    };
+  }, []);
+  
+  
   const handleLogout = () => {
     logout();
     navigate('/login');
