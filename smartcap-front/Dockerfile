@@ -3,6 +3,8 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+ARG VITE_API_BASE_URL
+
 # 의존성 설치
 COPY package*.json ./
 RUN npm install
@@ -11,7 +13,7 @@ RUN npm install
 COPY . .
 
 # 앱 빌드 (Vue 또는 React)
-RUN npm run build
+RUN VITE_API_BASE_URL=$VITE_API_BASE_URL npm run build
 
 # 2단계: Nginx 설정
 FROM nginx:alpine

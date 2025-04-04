@@ -3,6 +3,8 @@ pipeline {
 
     environment {
         DOCKER_CREDENTIALS_ID = "dockerHub"
+        VITE_API_BASE_URL = "https://j12a102.p.ssafy.io"
+
     }
 
 
@@ -23,7 +25,7 @@ pipeline {
                         docker stop smartcap-front || true
                         docker rm smartcap-front || true
                         docker rmi smartcap-front || true
-                        docker build -t smartcap-front .
+                        docker build --build-arg VITE_API_BASE_URL=$VITE_API_BASE_URL -t smartcap-front .
                     '''
                 }
             }
