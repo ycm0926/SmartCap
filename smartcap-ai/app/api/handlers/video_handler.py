@@ -68,6 +68,8 @@ async def handle_video_device(websocket, device_id: int):
     img_count = 1
     start_time = asyncio.get_event_loop().time()
     last_frame_time = start_time
+    # run_model()의 이전 호출 시각을 저장할 변수 (첫 프레임은 start_time 기준)
+    last_model_time = start_time
 
     try:
         while True:
@@ -98,8 +100,14 @@ async def handle_video_device(websocket, device_id: int):
             if frame is not None:
                 # 어안렌즈 보정 및 90도 좌측 회전
                 processed_frame = await asyncio.to_thread(preprocess_frame, frame)
-                # run_model 호출 (오프로드하여 실행)
-                result = await asyncio.to_thread(run_model, processed_frame)
+                # 현재 시간과 이전 run_model() 호출 시간의 차이를 계산 (소숫점 둘째자리까지)
+                current_time = asyncio.get_event_loop().time()
+                time_diff = round(current_time - last_model_time, 2)
+                last_model_time = current_time
+                # logger.info(f"딜레이 {time_diff}")
+
+                # run_model 호출 시 두 번째 매개변수로 time_diff 전달
+                result = await asyncio.to_thread(run_model, processed_frame, time_diff)
                 logger.info(f"[Device {device_id}] run_model result: {result}")
                 
                 # 이미지 저장 및 Redis 저장
