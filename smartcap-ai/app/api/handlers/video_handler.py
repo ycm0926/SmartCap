@@ -1,3 +1,4 @@
+import os
 import cv2
 import base64
 import numpy as np
@@ -7,7 +8,6 @@ import time
 from collections import deque
 
 import httpx  # 비동기 HTTP 호출을 위해 사용
-
 from starlette.websockets import WebSocketState
 
 from app.core.save_img import save_image, create_image_folder
@@ -21,17 +21,25 @@ from app.core.image_preprocessing import preprocess_frame
 
 logger = logging.getLogger(__name__)
 
+# 백엔드 주소 및 인증 정보 (환경 변수에서 읽음)
+BACKEND_SERVER_HOST = os.environ.get("BACKEND_SERVER_HOST", "localhost:8080")
+USERNAME = os.environ.get("BACKEND_API_USER")
+PASSWORD = os.environ.get("BACKEND_API_PASSWORD")
+credentials = f"{USERNAME}:{PASSWORD}"
+encoded_credentials = base64.b64encode(credentials.encode()).decode()
+auth_headers = {"Authorization": f"Basic {encoded_credentials}"}
+
 # 스프링 서버로 사고 정보를 전송하는 함수 (비동기, fire-and-forget)
 async def notify_accident(device_id: int, accident_type: int):
-    url = f"http://localhost:8080/api/accidents/{device_id}/notify"  # device_id 사용
+    url = f"http://{BACKEND_SERVER_HOST}/api/accident/{device_id}/notify"  # device_id 사용
     payload = {
         "constructionSitesId": 1,
         "accidentType": accident_type
     }
     try:
-        # 타임아웃을 0.1초로 설정하여 빠르게 실패하도록 함
-        timeout = httpx.Timeout(0.1)
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        # 타임아웃을 0.5초로 설정하여 빠르게 실패하도록 함
+        timeout = httpx.Timeout(0.5)
+        async with httpx.AsyncClient(timeout=timeout, headers=auth_headers) as client:
             await client.post(url, json=payload)
         logger.info(f"Accident notify sent for device {device_id} with type {accident_type}")
     except Exception as e:
@@ -39,14 +47,14 @@ async def notify_accident(device_id: int, accident_type: int):
 
 # 스프링 서버로 알람을 전송하는 함수 (비동기, fire-and-forget)
 async def notify_alarm(device_id: int, alarm_type: int):
-    url = f"http://localhost:8080/api/alarm/{device_id}/notify"  # device_id 사용
+    url = f"http://{BACKEND_SERVER_HOST}/api/alarm/{device_id}/notify"  # device_id 사용
     payload = {
         "constructionSitesId": 1,
-        "accidentType": alarm_type
+        "alarmType": alarm_type
     }
     try:
-        timeout = httpx.Timeout(0.1)
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        timeout = httpx.Timeout(0.5)
+        async with httpx.AsyncClient(timeout=timeout, headers=auth_headers) as client:
             await client.post(url, json=payload)
         logger.info(f"Alarm notify sent for device {device_id} with type {alarm_type}")
     except Exception as e:
@@ -60,6 +68,8 @@ async def handle_video_device(websocket, device_id: int):
     img_count = 1
     start_time = asyncio.get_event_loop().time()
     last_frame_time = start_time
+    # run_model()의 이전 호출 시각을 저장할 변수 (첫 프레임은 start_time 기준)
+    last_model_time = start_time
 
     try:
         while True:
@@ -88,10 +98,17 @@ async def handle_video_device(websocket, device_id: int):
                     logger.warning(f"[Device {device_id}] Unexpected text data received")
             
             if frame is not None:
-                # preprocess_frame 내에서 어안렌즈 보정 및 90도 좌측 회전 수행
+                # 어안렌즈 보정 및 90도 좌측 회전
                 processed_frame = await asyncio.to_thread(preprocess_frame, frame)
-                # 동기적으로 run_model 호출 (실행 완료 후 다음 단계 진행)
-                result = await asyncio.to_thread(run_model, processed_frame)
+                # 현재 시간과 이전 run_model() 호출 시간의 차이를 계산 (소숫점 둘째자리까지)
+                current_time = asyncio.get_event_loop().time()
+                time_diff = round(current_time - last_model_time, 2)
+                last_model_time = current_time
+                # logger.info(f"딜레이 {time_diff}")
+
+                # run_model 호출 시 두 번째 매개변수로 time_diff 전달
+                result = await asyncio.to_thread(run_model, processed_frame, time_diff)
+                logger.info(f"[Device {device_id}] run_model result: {result}")
                 
                 # 이미지 저장 및 Redis 저장
                 await asyncio.to_thread(save_image, folder, processed_frame, img_count)
@@ -100,19 +117,15 @@ async def handle_video_device(websocket, device_id: int):
                 if ret:
                     image_bytes = buf.tobytes()
                     key = f"device {device_id}:image:{int(time.time() * 1000)}_{img_count}"
-                    # blocking 작업인 redis_client.set을 개별 스레드에서 진행되는 것을 비동기로 실행
                     await asyncio.to_thread(redis_client.set, key, image_bytes, ex=180)
                     logger.info(f"[Device {device_id}] Image saved to Redis with key {key}")
                     
                 if result != 0:
                     try:
-                        if result % 3 == 0:  # 3의 배수면 스프링에 사고 알림
-                            # fire-and-forget 방식: notify 함수 호출 후 바로 다음 작업 진행
+                        if result % 3 == 0:
                             asyncio.create_task(notify_accident(device_id, result))
-                        else: # 아니라면 스프링 및 디바이스에 알림 전송
+                        else:
                             asyncio.create_task(notify_alarm(device_id, result))
-                            
-                            # device 2에 웹소켓 통신으로 result 전송
                             target_device = 2
                             if target_device in state.clients:
                                 await state.clients[target_device].send_text(str(result))
