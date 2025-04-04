@@ -105,16 +105,15 @@ async def handle_video_device(websocket, device_id: int):
                 # 캡쳐 간격을 초 단위 실수로 변환 (예: 100ms -> 0.10초)
                 # 만약 ms 그대로 사용하고 싶으면 capture_interval로 사용
                 if capture_interval is not None:
-                    time_diff = round(capture_interval / 1000.0, 2)
-                    logger.info(f"캡쳐 간격: {time_diff} 초")
+                    logger.info(f"캡쳐 간격: {capture_interval} ms")
+                    time_diff = capture_interval  # ms 그대로 사용
                 else:
-                    # text 데이터 등으로 수신한 경우 기존 방식 유지 (혹은 기본값 사용)
-                    time_diff = 0.0
-                    logger.info("캡쳐 간격 값이 존재하지 않습니다. 기본값 0.0 초 사용")
+                    time_diff = 0  # ms 단위로 0으로 설정
+                    logger.info("캡쳐 간격 값이 존재하지 않습니다. 기본값 0 ms 사용")
+
                 
                 # run_model 호출 시 두 번째 매개변수로 캡쳐 간격 전달
                 result = await asyncio.to_thread(run_model, processed_frame, time_diff)
-                logger.info(f"[Device {device_id}] run_model result: {result}")
                 
                 # 이미지 저장 및 Redis 저장 (fire-and-forget)
                 asyncio.create_task(asyncio.to_thread(save_image, folder, processed_frame, img_count))
