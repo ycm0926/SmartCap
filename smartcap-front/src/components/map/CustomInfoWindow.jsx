@@ -1,4 +1,4 @@
-// CustomInfoWindow.jsx 파일을 아래와 같이 수정
+// CustomInfoWindow.jsx
 import React from 'react';
 import { OverlayView } from '@react-google-maps/api';
 
@@ -10,7 +10,64 @@ const CustomInfoWindow = ({
   getAlarmTypeText, 
   getRecognizedTypeText 
 }) => {
-  if (!alarm) return null;
+  // 데이터 유효성 검사
+  if (!alarm || !position || !position.lat || !position.lng) {
+    console.warn("CustomInfoWindow: 유효하지 않은 데이터", { alarm, position });
+    return null;
+  }
+
+  // 알람 타입 및 인식 타입 안전하게 렌더링
+  const renderAlarmType = () => {
+    try {
+      if (typeof getAlarmTypeText === 'function') {
+        return getAlarmTypeText(alarm.alarm_type);
+      }
+      return alarm.alarm_type || "알 수 없음";
+    } catch (error) {
+      console.error("알람 타입 렌더링 오류:", error);
+      return "알 수 없음";
+    }
+  };
+
+  const renderRecognizedType = () => {
+    try {
+      if (typeof getRecognizedTypeText === 'function') {
+        return getRecognizedTypeText(alarm.recognized_type);
+      }
+      return alarm.recognized_type || "알 수 없음";
+    } catch (error) {
+      console.error("인식 타입 렌더링 오류:", error);
+      return "알 수 없음";
+    }
+  };
+
+  // 날짜 포맷팅 함수 - 오류 처리
+  const formatDate = (dateStr) => {
+    try {
+      return new Date(dateStr).toLocaleString();
+    } catch (error) {
+      console.error("날짜 포맷팅 오류:", error);
+      return dateStr || "알 수 없음";
+    }
+  };
+
+  // 이벤트 처리 함수 - 오류 방지
+  const handleClose = (e) => {
+    if (e) e.preventDefault();
+    if (typeof onClose === 'function') {
+      onClose();
+    }
+  };
+
+  const handleDetailClick = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (typeof onDetailClick === 'function') {
+      onDetailClick(alarm);
+    }
+  };
 
   return (
     <OverlayView
@@ -22,15 +79,12 @@ const CustomInfoWindow = ({
       })}
     >
       <div className="custom-overlay-window">
-        <button className="close-btn" onClick={onClose}>&times;</button>
-        <h3>{getAlarmTypeText(alarm.alarm_type)}</h3>
-        <p><strong>대상:</strong> {getRecognizedTypeText(alarm.recognized_type)}</p>
-        <p><strong>시간:</strong> {new Date(alarm.created_at).toLocaleString()}</p>
+        <button className="close-btn" onClick={handleClose}>&times;</button>
+        <h3>{renderAlarmType()}</h3>
+        <p><strong>대상:</strong> {renderRecognizedType()}</p>
+        <p><strong>시간:</strong> {formatDate(alarm.created_at)}</p>
         <button 
-          onClick={(e) => {
-            e.stopPropagation();
-            onDetailClick(alarm);
-          }}
+          onClick={handleDetailClick}
           className="detail-btn"
         >
           상세 정보 보기

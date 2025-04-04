@@ -32,84 +32,105 @@ const IncidentsPanel = ({ alarmHistory, newAlarmId, openAlarmDetails, getAlarmTy
     }
   };
 
-  // 위치 정보 포맷팅
+  // 위치 정보 포맷팅 - 에러 처리 추가
   const formatLocation = (alarm) => {
+    // 사이트 이름이 있으면 그것을 반환
     if (alarm.site_name) {
       return alarm.site_name;
     }
+
+    // gps 데이터 유효성 검사
+    if (!alarm.gps || !alarm.gps.coordinates || !Array.isArray(alarm.gps.coordinates) || alarm.gps.coordinates.length < 2) {
+      return "위치 정보 없음";
+    }
+    
     // 위도/경도를 간결하게 포맷팅
-    const lat = alarm.gps.coordinates[1].toFixed(4);
-    const lng = alarm.gps.coordinates[0].toFixed(4);
-    return `${lat}, ${lng}`;
+    try {
+      const lat = alarm.gps.coordinates[1].toFixed(4);
+      const lng = alarm.gps.coordinates[0].toFixed(4);
+      return `${lat}, ${lng}`;
+    } catch (error) {
+      console.warn("좌표 포맷팅 실패:", error, alarm);
+      return "좌표 오류";
+    }
+  };
+
+  // 알람 데이터 유효성 검사
+  const isValidAlarm = (alarm) => {
+    return alarm && typeof alarm === 'object';
   };
 
   return (
     <div className="incidents-panel">
       <h2>알람 이력</h2>
-      {alarmHistory.length === 0 ? (
+      {!alarmHistory || alarmHistory.length === 0 ? (
         <p>감지된 알람이 없습니다.</p>
       ) : (
         <ul>
-          {alarmHistory.map(alarm => {
-            const isNew = alarm.alarm_id === newAlarmId;
-            const hasVideo = alarm.accident_id || 
-                            alarm.recognized_type === 'Falling' || 
-                            alarm.alarm_type === 'Accident';
-            
-            return (
-              <li 
-                key={alarm.alarm_id} 
-                onClick={() => openAlarmDetails(alarm)}
-                className={`${isNew ? 'new-incident' : ''} ${hasVideo ? 'has-video' : ''}`}
-              >
-                <div className="incident-icon">
-                  <AlertTriangle 
-                    size={18} 
-                    color={getAlarmIconColor(alarm.alarm_type, isNew)} 
-                  />
-                </div>
-
-                <div className="incident-info">
-                  <div className="incident-header">
-                    <div className="incident-type">
-                      {getAlarmTypeText(alarm.alarm_type)} - {getRecognizedTypeText(alarm.recognized_type)}
-                      <span className={`weather-badge ${getWeatherClass(alarm.weather)}`} 
-                            title={alarm.weather}>
-                        {/* 날씨 아이콘 */}
-                      </span>
-                    </div>
-                    <div className="incident-time">
-                      <Clock size={14} />
-                      {new Date(alarm.created_at).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit"
-                      })}
-                    </div>
+          {alarmHistory
+            .filter(alarm => isValidAlarm(alarm)) // 유효한 알람만 필터링
+            .map(alarm => {
+              const isNew = alarm.alarm_id === newAlarmId;
+              const hasVideo = alarm.accident_id || 
+                              alarm.recognized_type === 'Falling' || 
+                              alarm.alarm_type === 'Accident';
+              
+              return (
+                <li 
+                  key={alarm.alarm_id || `alarm-${Math.random()}`} // alarm_id 없을 경우 대비
+                  onClick={() => openAlarmDetails(alarm)}
+                  className={`${isNew ? 'new-incident' : ''} ${hasVideo ? 'has-video' : ''}`}
+                >
+                  <div className="incident-icon">
+                    <AlertTriangle 
+                      size={18} 
+                      color={getAlarmIconColor(alarm.alarm_type, isNew)} 
+                    />
                   </div>
 
-                  <div className="incident-meta">
-                    <div className="incident-device">
-                      <HardHat size={14} />
-                      안전모 #{alarm.device_id || 'N/A'}
-                    </div>
-                    
-                    <div className="incident-location">
-                      <MapPin size={14} />
-                      {formatLocation(alarm)}
-                    </div>
-                    
-                    {hasVideo && (
-                      <div className="incident-video-tag">
-                        <span className="video-badge">비디오</span>
+                  <div className="incident-info">
+                    <div className="incident-header">
+                      <div className="incident-type">
+                        {getAlarmTypeText(alarm.alarm_type)} - {getRecognizedTypeText(alarm.recognized_type)}
+                        {alarm.weather && (
+                          <span className={`weather-badge ${getWeatherClass(alarm.weather)}`} 
+                                title={alarm.weather}>
+                            {/* 날씨 아이콘 */}
+                          </span>
+                        )}
                       </div>
-                    )}
+                      <div className="incident-time">
+                        <Clock size={14} />
+                        {new Date(alarm.created_at).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit"
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="incident-meta">
+                      <div className="incident-device">
+                        <HardHat size={14} />
+                        안전모 #{alarm.device_id || 'N/A'}
+                      </div>
+                      
+                      <div className="incident-location">
+                        <MapPin size={14} />
+                        {formatLocation(alarm)}
+                      </div>
+                      
+                      {hasVideo && (
+                        <div className="incident-video-tag">
+                          <span className="video-badge">비디오</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                
-                {isNew && <div className="new-indicator">NEW!</div>}
-              </li>
-            );
-          })}
+                  
+                  {isNew && <div className="new-indicator">NEW!</div>}
+                </li>
+              );
+            })}
         </ul>
       )}
       

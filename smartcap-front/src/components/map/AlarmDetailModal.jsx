@@ -3,45 +3,99 @@ import React from 'react';
 import { HardHat, MapPin, Calendar, Cloud, Info, Building, Sun, CloudRain, CloudSnow, CloudFog, CloudLightning, CloudHail, Wind } from 'lucide-react';
 
 const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal, getAlarmTypeText, getRecognizedTypeText }) => {
+  // 모달이 열리지 않거나 선택된 알람이 없으면 렌더링하지 않음
   if (!showModal || !selectedAlarm) return null;
 
-  // 날씨에 따른 아이콘 클래스 반환
+  // 날씨에 따른 아이콘 렌더링 함수 - 오류 처리 추가
   const getWeatherIcon = (weather) => {
-    switch(weather) {
-      case '맑음': return <Sun size={20} color="#FFD700" />;
-      case '흐림': return <Cloud size={20} color="#CCCCCC" />;
-      case '비': return <CloudRain size={20} color="#0099FF" />;
-      case '눈': return <CloudSnow size={20} color="#FFFFFF" />;
-      case '안개': return <CloudFog size={20} color="#AAAAAA" />;
-      case '폭우': return <CloudRain size={20} color="#0066CC" />;
-      case '폭설': return <CloudSnow size={20} color="#EEEEEE" />;
-      case '천둥번개': return <CloudLightning size={20} color="#FFD700" />;
-      case '우박': return <CloudHail size={20} color="#AADDFF" />;
-      case '황사': return <Wind size={20} color="#D2B48C" />;
-      default: return <Cloud size={20} />;
+    if (!weather) return <Cloud size={20} color="#CCCCCC" />;
+    
+    try {
+      switch(weather) {
+        case '맑음': return <Sun size={20} color="#FFD700" />;
+        case '흐림': return <Cloud size={20} color="#CCCCCC" />;
+        case '비': return <CloudRain size={20} color="#0099FF" />;
+        case '눈': return <CloudSnow size={20} color="#FFFFFF" />;
+        case '안개': return <CloudFog size={20} color="#AAAAAA" />;
+        case '폭우': return <CloudRain size={20} color="#0066CC" />;
+        case '폭설': return <CloudSnow size={20} color="#EEEEEE" />;
+        case '천둥번개': return <CloudLightning size={20} color="#FFD700" />;
+        case '우박': return <CloudHail size={20} color="#AADDFF" />;
+        case '황사': return <Wind size={20} color="#D2B48C" />;
+        default: return <Cloud size={20} />;
+      }
+    } catch (error) {
+      console.error("날씨 아이콘 렌더링 오류:", error);
+      return <Cloud size={20} />;
     }
   };
 
-  // 알람 타입에 따른 배지 색상 반환
+  // 알람 타입에 따른 배지 색상 반환 - 안전한 처리
   const getAlarmBadgeColor = (alarmType) => {
-    switch(alarmType) {
-      case 'Danger': return '#E76A1F'; // 다홍색
-      case 'Warning': return '#FFC107'; // 노란색
-      case 'Accident':
-      case 'Falling': return '#ff0000'; // 빨간색
-      default: return '#ff0000'; // 기본 주황색
+    if (!alarmType) return '#808080'; // 기본값
+    
+    try {
+      switch(alarmType) {
+        case 'Danger': return '#E76A1F'; // 다홍색
+        case 'Warning': return '#FFC107'; // 노란색
+        case 'Accident':
+        case 'Falling': return '#ff0000'; // 빨간색
+        default: return '#ff0000'; // 기본 주황색
+      }
+    } catch (error) {
+      console.error("알람 배지 색상 처리 오류:", error);
+      return '#808080';
+    }
+  };
+
+  // 좌표 표시 안전 함수
+  const safeCoordinates = () => {
+    try {
+      if (selectedAlarm && selectedAlarm.gps && 
+          selectedAlarm.gps.coordinates && 
+          Array.isArray(selectedAlarm.gps.coordinates) && 
+          selectedAlarm.gps.coordinates.length >= 2) {
+        return (
+          <>
+            위도: {selectedAlarm.gps.coordinates[1].toFixed(6)}, 
+            경도: {selectedAlarm.gps.coordinates[0].toFixed(6)}
+          </>
+        );
+      }
+      return '좌표 정보 없음';
+    } catch (error) {
+      console.error("좌표 표시 오류:", error);
+      return '좌표 표시 오류';
+    }
+  };
+
+  // 날짜 포맷팅 - 오류 처리
+  const formatDate = (dateStr) => {
+    try {
+      return new Date(dateStr).toLocaleString();
+    } catch (error) {
+      console.error("날짜 포맷팅 오류:", error);
+      return dateStr || "알 수 없음";
+    }
+  };
+
+  // 안전한 콜백 처리
+  const handleCloseModal = (e) => {
+    if (e) e.preventDefault();
+    if (typeof closeModal === 'function') {
+      closeModal();
     }
   };
 
   return (
-    <div className="modal-overlay" onClick={closeModal}>
+    <div className="modal-overlay" onClick={handleCloseModal}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
-        <button className="modal-close" onClick={closeModal}>&times;</button>
+        <button className="modal-close" onClick={handleCloseModal}>&times;</button>
 
         <div className="modal-header">
-          <h2>{getAlarmTypeText(selectedAlarm.alarm_type)} 상세 정보</h2>
+          <h2>{getAlarmTypeText ? getAlarmTypeText(selectedAlarm.alarm_type) : selectedAlarm.alarm_type} 상세 정보</h2>
           <span className="alarm-type-badge" style={{ backgroundColor: getAlarmBadgeColor(selectedAlarm.alarm_type) }}>
-            {selectedAlarm.alarm_type}
+            {selectedAlarm.alarm_type || '알 수 없음'}
           </span>
         </div>
         
@@ -63,24 +117,16 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
           <h3>알람 정보</h3>
           
           <div className="detail-section">
-            {/* 
             <div className="detail-item">
               <span className="detail-icon"><Info size={16} /></span>
-              <span className="detail-label">알람 ID:</span>
-              <span className="detail-value">{selectedAlarm.alarm_id}</span>
-            </div>
-            */}
-            
-             <div className="detail-item">
-              <span className="detail-icon"><Info size={16} /></span>
               <span className="detail-label">알람 유형:</span>
-              <span className="detail-value">{getAlarmTypeText(selectedAlarm.alarm_type)}</span>
+              <span className="detail-value">{getAlarmTypeText ? getAlarmTypeText(selectedAlarm.alarm_type) : selectedAlarm.alarm_type || '알 수 없음'}</span>
             </div>
             
             <div className="detail-item">
               <span className="detail-icon"><Info size={16} /></span>
               <span className="detail-label">감지 대상:</span>
-              <span className="detail-value">{getRecognizedTypeText(selectedAlarm.recognized_type)}</span>
+              <span className="detail-value">{getRecognizedTypeText ? getRecognizedTypeText(selectedAlarm.recognized_type) : selectedAlarm.recognized_type || '알 수 없음'}</span>
             </div>
             
             <div className="detail-item">
@@ -92,7 +138,7 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
             <div className="detail-item">
               <span className="detail-icon"><Calendar size={16} /></span>
               <span className="detail-label">발생 시간:</span>
-              <span className="detail-value">{new Date(selectedAlarm.created_at).toLocaleString()}</span>
+              <span className="detail-value">{formatDate(selectedAlarm.created_at)}</span>
             </div>
           </div>
           
@@ -103,8 +149,7 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
               <span className="detail-icon"><MapPin size={16} /></span>
               <span className="detail-label">좌표:</span>
               <span className="detail-value">
-                위도: {selectedAlarm.gps.coordinates[1].toFixed(6)}, 
-                경도: {selectedAlarm.gps.coordinates[0].toFixed(6)}
+                {safeCoordinates()}
               </span>
             </div>
             
@@ -138,7 +183,6 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
             selectedAlarm.accident_id) && (
             <button className="btn-primary">긴급 구조 요청</button>
           )}
-          {/* <button className="btn-secondary">처리 완료 표시</button> */}
         </div>
 
         {/* 스타일 추가 */}
