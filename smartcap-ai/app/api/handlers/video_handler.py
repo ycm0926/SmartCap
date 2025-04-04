@@ -59,13 +59,17 @@ async def notify_alarm(device_id: int, alarm_type: int):
         logger.info(f"Alarm notify sent for device {device_id} with type {alarm_type}")
     except Exception as e:
         logger.error(f"Alarm notify failed (fire-and-forget): {e}")
+
 async def handle_video_device(websocket, device_id: int):
     state.clients[device_id] = websocket
     logger.info(f"[Device {device_id}] Video device connected")
     folder = create_image_folder()
     logger.info("create img")
     img_count = 1
-    # run_model() 호출 시 캡쳐 간격을 사용
+
+    # 녹화 시작 시간
+    start_time = time.time()
+
     try:
         while True:
             if websocket.application_state == WebSocketState.DISCONNECTED:
@@ -102,15 +106,12 @@ async def handle_video_device(websocket, device_id: int):
             if frame is not None:
                 # 어안렌즈 보정 및 90도 좌측 회전
                 processed_frame = await asyncio.to_thread(preprocess_frame, frame)
-                # 캡쳐 간격을 초 단위 실수로 변환 (예: 100ms -> 0.10초)
-                # 만약 ms 그대로 사용하고 싶으면 capture_interval로 사용
                 if capture_interval is not None:
                     logger.info(f"캡쳐 간격: {capture_interval} ms")
                     time_diff = capture_interval  # ms 그대로 사용
                 else:
                     time_diff = 0  # ms 단위로 0으로 설정
                     logger.info("캡쳐 간격 값이 존재하지 않습니다. 기본값 0 ms 사용")
-
                 
                 # run_model 호출 시 두 번째 매개변수로 캡쳐 간격 전달
                 result = await asyncio.to_thread(run_model, processed_frame, time_diff)
@@ -156,5 +157,6 @@ async def handle_video_device(websocket, device_id: int):
                 await websocket.close()
         except Exception as close_err:
             logger.warning(f"[Device {device_id}] Error closing websocket: {close_err}")
-        duration = time.time()  # 영상 녹화 종료 시각
+        # 녹화 종료 시점과 시작 시점의 차이를 계산하여 지속 시간을 구합니다.
+        duration = time.time() - start_time
         await asyncio.to_thread(create_video_from_images, folder, duration)
