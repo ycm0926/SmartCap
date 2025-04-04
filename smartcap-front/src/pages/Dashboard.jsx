@@ -20,7 +20,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     const fetchStats = async () => {
-      const res = await fetch('http://localhost:8080/api/events/dashboard'); // 실제 엔드포인트로 교체
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/events/dashboard`);
       const data = await res.json();
       console.log("data: ",data);
       setAllStats(data);
@@ -30,7 +30,7 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    const eventSource = new EventSource('http://localhost:8080/api/sse');
+    const eventSource = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/sse`);
   
     const updateStat = useStatsStore.getState().updateStat;
   

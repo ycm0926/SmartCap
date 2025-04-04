@@ -227,7 +227,7 @@ export default function AlarmSSE() {
     try {
       console.log("🔄 알람 SSE 연결 시도...");
       
-      const es = new EventSource("http://localhost:8080/alarms");
+      const es = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/alarms`);
       alarmConnectionRef.current.eventSource = es;
       
       // 알람 버퍼링
@@ -389,7 +389,7 @@ export default function AlarmSSE() {
     try {
       console.log("🔄 사고 SSE 연결 시도...");
       
-      const es = new EventSource("http://localhost:8080/api/accident/subscribe");
+      const es = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/accident/subscribe`);
       accidentConnectionRef.current.eventSource = es;
       
       // 사고 버퍼링

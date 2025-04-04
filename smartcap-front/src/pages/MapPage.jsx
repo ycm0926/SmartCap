@@ -44,7 +44,8 @@ const MapPage = () => {
       setIsLoading(true);
       
       // 필요한 데이터만 요청하도록 파라미터 추가
-      const response = await axios.get('http://localhost:8080/api/events/map', {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/events/map`, {
+
         params: {
           limit: 50  // 최근 50개 알람만 요청
         },
