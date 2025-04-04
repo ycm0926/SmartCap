@@ -14,7 +14,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/sse/alarm")
+@RequestMapping("/api/sse/alarms")
 @RequiredArgsConstructor
 public class AlarmSseController {
 
