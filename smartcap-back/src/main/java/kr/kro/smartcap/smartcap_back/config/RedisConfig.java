@@ -4,6 +4,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisPassword;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializer;
@@ -24,12 +26,15 @@ public class RedisConfig {
     @Value("${spring.redis.password:}")
     private String redisPassword;
 
-
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
-        LettuceConnectionFactory factory = new LettuceConnectionFactory(redisHost, redisPort);
-        factory.setDatabase(redisDatabase);
-        return factory;
+        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(redisHost, redisPort);
+        config.setDatabase(redisDatabase);
+        // 비밀번호가 있을 경우 설정 (비밀번호가 없으면 빈 문자열이므로 문제가 없도록 처리)
+        if (redisPassword != null && !redisPassword.isEmpty()) {
+            config.setPassword(RedisPassword.of(redisPassword));
+        }
+        return new LettuceConnectionFactory(config);
     }
 
     @Bean
@@ -49,5 +54,4 @@ public class RedisConfig {
         template.setValueSerializer(new org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer());
         return template;
     }
-
 }
