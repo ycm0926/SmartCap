@@ -7,7 +7,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("api/sse")
+@RequestMapping("/api/sse/stat")
 public class StatSseController {
 
     private final StatSseEmitterManager statSseEmitterManager;
