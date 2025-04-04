@@ -1,6 +1,6 @@
 // src/services/authService.js
 // const API_URL = '/api/auth';
-const MY_URL = 'http://localhost:8080';
+const MY_URL = import.meta.env.VITE_API_BASE_URL;
 const API_URL = '/api/auth';
 
 const authService = {
