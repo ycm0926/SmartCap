@@ -66,9 +66,10 @@ async def handle_video_device(websocket, device_id: int):
     folder = create_image_folder()
     logger.info("create img")
     img_count = 1
-    start_time = asyncio.get_event_loop().time()
+    # 고해상도 타이머: time.perf_counter() 사용
+    start_time = time.perf_counter()
     last_frame_time = start_time
-    # run_model()의 이전 호출 시각을 저장할 변수 (첫 프레임은 start_time 기준)
+    # run_model() 이전 호출 시각 (첫 프레임은 start_time 기준)
     last_model_time = start_time
 
     try:
@@ -100,23 +101,24 @@ async def handle_video_device(websocket, device_id: int):
             if frame is not None:
                 # 어안렌즈 보정 및 90도 좌측 회전
                 processed_frame = await asyncio.to_thread(preprocess_frame, frame)
-                # 현재 시간과 이전 run_model() 호출 시간의 차이를 계산 (소숫점 둘째자리까지)
-                current_time = asyncio.get_event_loop().time()
+                # 실제 측정된 딜레이 계산 (소숫점 둘째자리까지)
+                current_time = time.perf_counter()
                 time_diff = round(current_time - last_model_time, 2)
                 last_model_time = current_time
-                # logger.info(f"딜레이 {time_diff}")
-
-                # run_model 호출 시 두 번째 매개변수로 time_diff 전달
-                result = await asyncio.to_thread(run_model, processed_frame, time_diff)
+                logger.info(f"딜레이 {time_diff}")
                 
-                # 이미지 저장 및 Redis 저장
-                await asyncio.to_thread(save_image, folder, processed_frame, img_count)
+                # run_model 호출 시 두 번째 매개변수로 실제 측정된 time_diff 전달
+                result = await asyncio.to_thread(run_model, processed_frame, time_diff)
+                logger.info(f"[Device {device_id}] run_model result: {result}")
+                
+                # 이미지 저장 및 Redis 저장을 fire-and-forget 방식으로 처리하여 메인 루프 지연 최소화
+                asyncio.create_task(asyncio.to_thread(save_image, folder, processed_frame, img_count))
                     
                 ret, buf = cv2.imencode('.jpg', processed_frame)
                 if ret:
                     image_bytes = buf.tobytes()
                     key = f"device {device_id}:image:{int(time.time() * 1000)}_{img_count}"
-                    await asyncio.to_thread(redis_client.set, key, image_bytes, ex=180)
+                    asyncio.create_task(asyncio.to_thread(redis_client.set, key, image_bytes, ex=180))
                     logger.info(f"[Device {device_id}] Image saved to Redis with key {key}")
                     
                 if result != 0:
@@ -137,7 +139,7 @@ async def handle_video_device(websocket, device_id: int):
                     logger.info(f"[Device {device_id}] run_model result is 0, no notification sent")
                     
                 img_count += 1
-                last_frame_time = asyncio.get_event_loop().time()
+                last_frame_time = time.perf_counter()
             else:
                 logger.warning(f"[Device {device_id}] No valid frame data received")
     except asyncio.CancelledError:
