@@ -23,14 +23,14 @@ pipeline {
 
     stages {
         stage('Docker Login') {
-                steps {
-                    withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                         sh '''
-                             echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-                         '''
-                    }
+            steps {
+                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                    sh '''
+                        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+                    '''
                 }
             }
+        }
 
         stage('Debug') {
             steps {
@@ -42,7 +42,7 @@ pipeline {
                     echo "REDIS_HOST: $REDIS_HOST"
                     echo "REDIS_PORT: $REDIS_PORT"
                     echo "REDIS_DB: $REDIS_DB"
-                    echo "REDIS_PASSWORD: $REDIS_PASSWORD"  // 디버그용 출력 (보안상 주의)
+                    echo "REDIS_PASSWORD: $REDIS_PASSWORD"
                     echo "AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID"
                     echo "AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY"
                 '''
