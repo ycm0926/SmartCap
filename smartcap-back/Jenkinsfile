@@ -86,7 +86,7 @@ pipeline {
                             -e REDIS_HOST=$REDIS_HOST \
                             -e REDIS_PORT=$REDIS_PORT \
                             -e REDIS_DB=$REDIS_DB \
-                            -e REDIS_PASSWORD=$REDIS_PASSWORD \  // 추가된 부분
+                            -e REDIS_PASSWORD=$REDIS_PASSWORD \
                             -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
                             -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
                             -e WEATHER_API_KEY=$WEATHER_API_KEY \
