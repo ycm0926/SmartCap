@@ -22,6 +22,15 @@ public class StatSseEmitterManager {
         emitter.onCompletion(() -> emitters.remove(emitter));
         emitter.onError(e -> emitters.remove(emitter));
 
+        try {
+            emitter.send(SseEmitter.event()
+                    .name("init")
+                    .data("connected"));
+        } catch (IOException e) {
+            emitters.remove(emitter);
+            log.warn("Failed to send initial SSE event: {}", e.getMessage());
+        }
+
         return emitter;
     }
 

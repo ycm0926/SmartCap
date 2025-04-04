@@ -13,6 +13,7 @@ public class StatSseController {
     private final StatSseEmitterManager statSseEmitterManager;
 
     @GetMapping
+    @CrossOrigin(origins = "https://j12a102.p.ssafy.io")
     public SseEmitter connectToStatSse() {
         return statSseEmitterManager.subscribe();
     }
