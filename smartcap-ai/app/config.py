@@ -26,6 +26,6 @@ class RiskSeverity:
 # 위험 유형별 기준값 (코드 오프셋)
 class RiskTypeOffset:
     MATERIAL = 0   # 건설 자재: 0 + 위험단계 = 1, 2, 3
-    FALL_ZONE = 3  # 낙상: 3 + 위험단계 = 4, 5, 7
+    FALL_ZONE = 3  # 낙상: 3 + 위험단계 = 4, 5, 6
     VEHICLE = 6    # 차량: 6 + 위험단계 = 7, 8, 9
     UNKNOWN = 10   # 원인 불명 사고: 항상 10
