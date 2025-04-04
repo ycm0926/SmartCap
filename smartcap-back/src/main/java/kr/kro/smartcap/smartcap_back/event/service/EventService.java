@@ -15,9 +15,14 @@ public class EventService {
     private final RedisTemplate<String, String> redisTemplate;
 
     public StatResponseDto getDashboardSummary() {
-        List<StatGroupDto> hourlyStats = getStatGroups("alarm:", "hour");
+        List<StatGroupDto> hourlyStats = getStatGroups("summary:hour:", "hour");
         List<StatGroupDto> dailyStats = getStatGroups("summary:day:", "day");
         List<StatGroupDto> monthlyStats = getStatGroups("summary:month:", "month");
+
+        // 시간순으로 정렬
+        hourlyStats.sort(Comparator.comparing(StatGroupDto::getKey, Comparator.reverseOrder()));
+        dailyStats.sort(Comparator.comparing(StatGroupDto::getKey, Comparator.reverseOrder()));
+        monthlyStats.sort(Comparator.comparing(StatGroupDto::getKey, Comparator.reverseOrder()));
 
         return StatResponseDto.builder()
                 .hourlyStats(hourlyStats)
@@ -35,19 +40,29 @@ public class EventService {
         HashOperations<String, String, String> hashOps = redisTemplate.opsForHash();
 
         for (String key : keys) {
-            Map<String, String> statMap = hashOps.entries(key);
-            List<StatEntryDto> stats = statMap.entrySet().stream()
-                    .map(entry -> StatEntryDto.builder()
-                            .field(entry.getKey())
-                            .count(Long.parseLong(entry.getValue()))
-                            .build())
-                    .collect(Collectors.toList());
-            result.add(StatGroupDto.builder()
-                    .key(key.replace(keyPrefix, ""))
-                    .scope(scope)
-                    .stats(stats)
-                    .build());
+            try{
+                System.out.println("[Redis 조회] key = " + key); // 👈 키 로그 찍기
+
+                Map<String, String> statMap = hashOps.entries(key);
+                List<StatEntryDto> stats = statMap.entrySet().stream()
+                        .map(entry -> StatEntryDto.builder()
+                                .field(entry.getKey())
+                                .count(Long.parseLong(entry.getValue()))
+                                .build())
+                        .collect(Collectors.toList());
+                result.add(StatGroupDto.builder()
+                        .key(key.replace(keyPrefix, ""))
+                        .scope(scope)
+                        .stats(stats)
+                        .build());
+            } catch (Exception e) {
+                System.err.println("[Redis 에러] key = " + key + ", type = " + redisTemplate.type(key));
+                e.printStackTrace(); // 전체 스택도 출력
+            }
         }
+
+        // 시간순으로 결과 정렬해서 반환
+        result.sort(Comparator.comparing(StatGroupDto::getKey, Comparator.reverseOrder()));
         return result;
     }
 }
