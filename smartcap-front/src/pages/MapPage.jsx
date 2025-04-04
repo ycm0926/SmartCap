@@ -11,7 +11,6 @@ import GoogleMapView from '../components/map/GoogleMapView';
 import IncidentsPanel from '../components/map/IncidentsPanel';
 import AlarmDetailModal from '../components/map/AlarmDetailModal';
 import { getAlarmTypeText, getRecognizedTypeText, getMarkerIcon, getAlarmColor } from '../utils/mapUtils';
-import AccidentSSE from '../components/AccidentSSE';
 
 
 const MapPage = () => {
@@ -39,6 +38,7 @@ const MapPage = () => {
   }, [alarms]);
 
   // 백엔드에서 지도 데이터를 가져오는 함수
+  // MapPage.jsx - fetchMapData 함수 수정
   const fetchMapData = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -46,12 +46,19 @@ const MapPage = () => {
       // 필요한 데이터만 요청하도록 파라미터 추가
       const response = await axios.get('http://localhost:8080/api/events/map', {
         params: {
-          limit: 50  // 최근 50개 알람만 요청 (서버에서 지원한다면)
+          limit: 50  // 최근 50개 알람만 요청
         },
         timeout: 10000  // 10초 타임아웃 설정
       });
       
       console.log('백엔드에서 받아온 지도 데이터:', response.data);
+      
+      // 데이터 유효성 검사
+      if (!response.data) {
+        console.error('유효하지 않은 응답 데이터:', response.data);
+        setIsLoading(false);
+        return;
+      }
       
       // 모든 알람을 처리하기 전에 배열로 준비
       const allAlarms = [];
@@ -59,9 +66,23 @@ const MapPage = () => {
       // recentAlarms 처리
       if (response.data.recentAlarms && Array.isArray(response.data.recentAlarms)) {
         response.data.recentAlarms.forEach(alarm => {
+          // 생성 날짜 변환 (ISO 문자열 형식 유지)
           if (typeof alarm.created_at === 'string') {
-            alarm.created_at = new Date(alarm.created_at);
+            const dateObj = new Date(alarm.created_at);
+            if (!isNaN(dateObj.getTime())) {
+              alarm.created_at = dateObj.toISOString();
+            }
+          } else if (alarm.created_at instanceof Date) {
+            alarm.created_at = alarm.created_at.toISOString();
           }
+          
+          // 알람 ID가 없는 경우 생성
+          if (!alarm.alarm_id) {
+            const timestamp = new Date().getTime();
+            const randomPart = Math.floor(Math.random() * 1000);
+            alarm.alarm_id = timestamp * 1000 + randomPart;
+          }
+          
           allAlarms.push(alarm);
         });
       }
@@ -69,34 +90,48 @@ const MapPage = () => {
       // fallingAccidents 처리
       if (response.data.fallingAccidents && Array.isArray(response.data.fallingAccidents)) {
         response.data.fallingAccidents.forEach(accident => {
+          // 생성 날짜 변환 (ISO 문자열 형식 유지)
           if (typeof accident.created_at === 'string') {
-            accident.created_at = new Date(accident.created_at);
+            const dateObj = new Date(accident.created_at);
+            if (!isNaN(dateObj.getTime())) {
+              accident.created_at = dateObj.toISOString();
+            }
+          } else if (accident.created_at instanceof Date) {
+            accident.created_at = accident.created_at.toISOString();
           }
+          
+          // 알람 ID가 없는 경우 생성
+          if (!accident.alarm_id) {
+            const timestamp = new Date().getTime();
+            const randomPart = Math.floor(Math.random() * 1000);
+            accident.alarm_id = timestamp * 1000 + randomPart;
+          }
+          
           allAlarms.push(accident);
         });
       }
       
-      // 모든 알람을 최신순으로 정렬
-      allAlarms.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      // 알람 데이터 정렬
+      allAlarms.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       
-      // 일괄 처리: 모든 알람을 한 번에 스토어에 추가
-      console.log(`총 ${allAlarms.length}개의 알람을 처리합니다.`);
+      console.log(`총 ${allAlarms.length}개의 알람 데이터로 상태 업데이트`);
       
-      // setTimeout으로 UI 렌더링 차단 방지
-      setTimeout(() => {
-        allAlarms.forEach(alarm => {
-          addAlarm(alarm);
-        });
+      // 상태 업데이트
+      requestAnimationFrame(() => {
+        // 스토어의 상태를 완전히 새 데이터로 교체
+        useAlarmStore.getState().setAlarms(allAlarms);
         setIsLoading(false);
-      }, 10);
+      });
       
     } catch (error) {
       console.error('지도 데이터를 가져오는 중 오류 발생:', error);
       setIsLoading(false);
     }
-  }, [addAlarm]);
+  }, []);
+
 
   // 초기 데이터 로드
+ // MapPage.jsx - useEffect 부분 수정
   useEffect(() => {
     let isMounted = true;
     
@@ -107,7 +142,7 @@ const MapPage = () => {
     
     loadMapData();
     
-    // 안전장치: 최대 8초 후에는 로딩 표시 중단
+    // 안전장치: 최대 3초 후에는 로딩 표시 중단
     const loadTimeout = setTimeout(() => {
       if (isMounted) setIsLoading(false);
     }, 3000);
@@ -279,8 +314,6 @@ const MapPage = () => {
     <div className={`map-page ${isAlertActive ? 'alert-active' : ''}`}>
       {/* 알람 SSE 구독 */}
       <AlarmSSE />
-      {/* 사고 SSE 구독 추가 */}
-      <AccidentSSE />
       
       {isAlertActive && <div className="alert-overlay"></div>}
       
