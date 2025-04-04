@@ -6,13 +6,13 @@ from app.config import RiskSeverity
 from app.config import RiskTypeOffset
 
 
-def run_model(preprocessed_frame, frame_count):
+def run_model(preprocessed_frame, frame_ms):
     """
     이미지 전처리된 프레임 받아 위험 감지, 사고 판단 비동기 처리 메인 메서드
     
     Parameter:
     - preprocessed_frame: 웹소켓으로 받은 이미지의 프레임 데이터
-    - frame_count: 현재 프레임 번호 (우험 감지 및 사고 판단 로직에서 연속된 프레임인지 확인)
+    - frame_ms: 이전 프레임과 현재 프레임의 지연 시간 (사고 판단 로직에서 확인)
     
     Return:
     - risk_result: 위험 단계 (0, 1, 2) 또는 사고 발생 (3)
@@ -24,12 +24,12 @@ def run_model(preprocessed_frame, frame_count):
         risk_future = executor.submit(
             run_risk_detection_pipeline, 
             preprocessed_frame.copy(), 
-            frame_count
+            frame_ms
         )
         incident_future = executor.submit(
             run_incident_detection_pipeline, 
             preprocessed_frame.copy(), 
-            frame_count
+            frame_ms
         )
         
         # 결과 받기
