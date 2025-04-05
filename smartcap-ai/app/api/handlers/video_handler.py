@@ -7,21 +7,18 @@ import logging
 import time
 from collections import deque
 
-import httpx  # 비동기 HTTP 호출을 위해 사용
-from starlette.websockets import WebSocketState
+import httpx
+from starlette.websockets import WebSocketState, WebSocketDisconnect
 
-from app.core.save_img import save_image, create_image_folder
-from app.core.save_video import create_video_from_images
 from app.core.redis_client import redis_client
 from app.services.detection_orchestrator import run_model
 from app.api import state
-
-# preprocess_frame 함수는 어안렌즈 보정과 90도 좌측 회전을 내부에서 수행하도록 수정됨
 from app.core.image_preprocessing import preprocess_frame
 
+# 로깅 설정
 logger = logging.getLogger(__name__)
 
-# 백엔드 주소 및 인증 정보 (환경 변수에서 읽음)
+# 백엔드 주소 및 인증 정보
 BACKEND_SERVER_HOST = os.environ.get("BACKEND_SERVER_HOST", "localhost:8080")
 USERNAME = os.environ.get("BACKEND_API_USER")
 PASSWORD = os.environ.get("BACKEND_API_PASSWORD")
@@ -29,134 +26,195 @@ credentials = f"{USERNAME}:{PASSWORD}"
 encoded_credentials = base64.b64encode(credentials.encode()).decode()
 auth_headers = {"Authorization": f"Basic {encoded_credentials}"}
 
-# 스프링 서버로 사고 정보를 전송하는 함수 (비동기, fire-and-forget)
-async def notify_accident(device_id: int, accident_type: int):
-    url = f"http://{BACKEND_SERVER_HOST}/api/accident/{device_id}/notify"  # device_id 사용
-    payload = {
-        "constructionSitesId": 1,
-        "accidentType": accident_type
-    }
-    try:
-        # 타임아웃을 0.5초로 설정하여 빠르게 실패하도록 함
-        timeout = httpx.Timeout(0.5)
-        async with httpx.AsyncClient(timeout=timeout, headers=auth_headers) as client:
-            await client.post(url, json=payload)
-        logger.info(f"Accident notify sent for device {device_id} with type {accident_type}")
-    except Exception as e:
-        logger.error(f"Accident notify failed (fire-and-forget): {e}")
+# HTTP 클라이언트
+http_client = httpx.AsyncClient(
+    timeout=1.0,
+    limits=httpx.Limits(max_keepalive_connections=30, max_connections=50),
+    headers=auth_headers
+)
 
-# 스프링 서버로 알람을 전송하는 함수 (비동기, fire-and-forget)
-async def notify_alarm(device_id: int, alarm_type: int):
-    url = f"http://{BACKEND_SERVER_HOST}/api/alarm/{device_id}/notify"  # device_id 사용
+# 디바이스별 마지막 결과
+last_device_results = {}
+
+# 백엔드 통지 함수 (결합)
+async def notify_backend(device_id, result_type):
+    is_accident = (result_type % 3 == 0)
+    endpoint = "accident" if is_accident else "alarm"
+    url = f"http://{BACKEND_SERVER_HOST}/api/{endpoint}/{device_id}/notify"
     payload = {
         "constructionSitesId": 1,
-        "alarmType": alarm_type
+        f"{'accidentType' if is_accident else 'alarmType'}": result_type
     }
+    
     try:
-        timeout = httpx.Timeout(0.5)
-        async with httpx.AsyncClient(timeout=timeout, headers=auth_headers) as client:
-            await client.post(url, json=payload)
-        logger.info(f"Alarm notify sent for device {device_id} with type {alarm_type}")
+        await http_client.post(url, json=payload)
+        logger.info(f"{endpoint.capitalize()} notify sent for device {device_id} with type {result_type}")
     except Exception as e:
-        logger.error(f"Alarm notify failed (fire-and-forget): {e}")
+        logger.error(f"{endpoint.capitalize()} notify failed: {e}")
 
 async def handle_video_device(websocket, device_id: int):
     state.clients[device_id] = websocket
     logger.info(f"[Device {device_id}] Video device connected")
-    folder = create_image_folder()
-    logger.info("create img")
     img_count = 1
-
-    # 녹화 시작 시간
+    frame_count = 0
     start_time = time.time()
-
+    last_fps_check = time.time()
+    frames_since_check = 0
+    
+    # 비동기 작업 추적
+    pending_tasks = []
+    
     try:
-        while True:
-            if websocket.application_state == WebSocketState.DISCONNECTED:
-                logger.info(f"[Device {device_id}] WebSocket disconnected, exiting loop.")
+        while websocket.application_state == WebSocketState.CONNECTED:
+            try:
+                # 짧은 타임아웃으로 데이터 수신 대기
+                data = await asyncio.wait_for(websocket.receive(), timeout=0.1)
+            except asyncio.TimeoutError:
+                # 타임아웃 시 계속 진행
+                continue
+            except WebSocketDisconnect:
+                logger.info(f"[Device {device_id}] WebSocket disconnected cleanly")
                 break
-
-            data = await websocket.receive()
+            except RuntimeError as e:
+                if "disconnect" in str(e):
+                    logger.info(f"[Device {device_id}] WebSocket disconnected (RuntimeError)")
+                    break
+                raise
+            
             frame = None
-            capture_interval = None  # ms 단위 캡쳐 간격
-
+            capture_interval = None
+            
+            # 바이너리 데이터 처리
             if "bytes" in data:
                 binary_data = data["bytes"]
                 if len(binary_data) < 4:
-                    logger.error("Received binary data too short")
                     continue
-                # 버퍼의 앞 4바이트에서 캡쳐 간격(ms, little-endian) 추출
+                
                 capture_interval = int.from_bytes(binary_data[:4], byteorder='little')
                 image_data = binary_data[4:]
                 frame_data = np.frombuffer(image_data, dtype=np.uint8)
                 frame = await asyncio.to_thread(cv2.imdecode, frame_data, cv2.IMREAD_COLOR)
-            elif "text" in data:
-                text_data = data["text"]
-                if text_data.startswith("data:image"):
-                    base64_data = text_data.split(",")[-1]
-                    try:
-                        img_bytes = base64.b64decode(base64_data)
-                        frame_data = np.frombuffer(img_bytes, dtype=np.uint8)
-                        frame = await asyncio.to_thread(cv2.imdecode, frame_data, cv2.IMREAD_COLOR)
-                    except Exception as e:
-                        logger.error(f"[Device {device_id}] Base64 decoding error: {e}")
-                else:
-                    logger.warning(f"[Device {device_id}] Unexpected text data received")
+            # 텍스트 데이터 처리
+            elif "text" in data and data["text"].startswith("data:image"):
+                try:
+                    base64_data = data["text"].split(",")[-1]
+                    img_bytes = base64.b64decode(base64_data)
+                    frame_data = np.frombuffer(img_bytes, dtype=np.uint8)
+                    frame = await asyncio.to_thread(cv2.imdecode, frame_data, cv2.IMREAD_COLOR)
+                except Exception as e:
+                    logger.error(f"[Device {device_id}] Base64 error: {e}")
             
             if frame is not None:
-                # 어안렌즈 보정 및 90도 좌측 회전
+                frame_count += 1
+                frames_since_check += 1
+                current_img_count = img_count
+                img_count += 1
+                
+                # 이전 모든 작업이 완료되길 기다림 (순서 보장)
+                if pending_tasks:
+                    await asyncio.gather(*pending_tasks)
+                    pending_tasks = []
+                
+                # 어안렌즈 보정
                 processed_frame = await asyncio.to_thread(preprocess_frame, frame)
-                if capture_interval is not None:
-                    logger.info(f"캡쳐 간격: {capture_interval} ms")
-                    time_diff = capture_interval  # ms 그대로 사용
-                else:
-                    time_diff = 0  # ms 단위로 0으로 설정
-                    logger.info("캡쳐 간격 값이 존재하지 않습니다. 기본값 0 ms 사용")
+                time_diff = capture_interval if capture_interval is not None else 0
                 
-                # run_model 호출 시 두 번째 매개변수로 캡쳐 간격 전달
+                # 모델 실행 (순서대로)
+                model_start = time.time()
                 result = await asyncio.to_thread(run_model, processed_frame, time_diff)
+                model_time = time.time() - model_start
                 
-                # 이미지 저장 및 Redis 저장 (fire-and-forget)
-                asyncio.create_task(asyncio.to_thread(save_image, folder, processed_frame, img_count))
-                    
-                ret, buf = cv2.imencode('.jpg', processed_frame)
-                if ret:
-                    image_bytes = buf.tobytes()
-                    key = f"device {device_id}:image:{int(time.time() * 1000)}_{img_count}"
-                    asyncio.create_task(asyncio.to_thread(redis_client.set, key, image_bytes, ex=180))
-                    logger.info(f"[Device {device_id}] Image saved to Redis with key {key}")
-                    
+                logger.info(f"[Device {device_id}] Frame #{frame_count}, result: {result}, model time: {model_time:.4f}s")
+                
+                # 결과 처리 (0이 아닐 때만)
                 if result != 0:
-                    try:
-                        if result % 3 == 0:
-                            asyncio.create_task(notify_accident(device_id, result))
-                        else:
-                            asyncio.create_task(notify_alarm(device_id, result))
+                    # Redis 저장 (비동기)
+                    async def save_to_redis():
+                        try:
+                            ret, buf = cv2.imencode('.jpg', processed_frame)
+                            if ret:
+                                image_bytes = buf.tobytes()
+                                key = f"device {device_id}:image:{int(time.time() * 1000)}_{current_img_count}"
+                                await asyncio.to_thread(redis_client.set, key, image_bytes, ex=180)
+                                logger.info(f"[Device {device_id}] Image saved to Redis with key {key}")
+                        except Exception as e:
+                            logger.error(f"[Device {device_id}] Redis error: {e}")
+                    
+                    # 결과가 이전과 다른 경우에만 알림 처리
+                    result_changed = device_id not in last_device_results or result != last_device_results[device_id]
+                    
+                    if result_changed:
+                        # 백엔드 알림 (비동기) - 결과가 변경됐을 때만
+                        async def send_notification():
+                            await notify_backend(device_id, result)
+                        
+                        # 디바이스 2로 전송
+                        async def send_to_device2():
                             target_device = 2
                             if target_device in state.clients:
-                                await state.clients[target_device].send_text(str(result))
-                                logger.info(f"[Device {device_id}] Sent result {result} to device {target_device} via websocket.")
-                            else:
-                                logger.warning(f"[Device {device_id}] Device {target_device} not connected. Cannot send result.")
-                    except Exception as e:
-                        logger.error(f"[Device {device_id}] Error sending notification: {e}")
-                else:
-                    logger.info(f"[Device {device_id}] run_model result is 0, no notification sent")
-                    
-                img_count += 1
-            else:
-                logger.warning(f"[Device {device_id}] No valid frame data received")
+                                try:
+                                    await state.clients[target_device].send_text(str(result))
+                                    logger.info(f"[Device {device_id}] Sent result {result} to device {target_device} via websocket")
+                                except Exception as e:
+                                    logger.error(f"[Device {device_id}] Error sending to device {target_device}: {e}")
+                        
+                        # 결과 업데이트
+                        last_device_results[device_id] = result
+                        
+                        # 비동기 작업 시작
+                        redis_task = asyncio.create_task(save_to_redis())
+                        notify_task = asyncio.create_task(send_notification())
+                        device2_task = asyncio.create_task(send_to_device2())
+                        
+                        # 작업 추적에 추가
+                        pending_tasks = [redis_task, notify_task, device2_task]
+                    else:
+                        # 결과가 변경되지 않았을 때는 Redis만 저장
+                        redis_task = asyncio.create_task(save_to_redis())
+                        pending_tasks = [redis_task]
+                        logger.debug(f"[Device {device_id}] Skipping notifications - result unchanged: {result}")
+                
+                # FPS 계산 및 출력
+                now = time.time()
+                if frames_since_check >= 10 or now - last_fps_check >= 5:
+                    fps = frames_since_check / (now - last_fps_check)
+                    logger.info(f"[Device {device_id}] Current FPS: {fps:.2f}, processed frames: {frame_count}")
+                    frames_since_check = 0
+                    last_fps_check = now
+                
     except asyncio.CancelledError:
-        logger.info(f"[Device {device_id}] handle_video_device cancelled")
+        logger.info(f"[Device {device_id}] Task cancelled")
     except Exception as e:
-        logger.error(f"[Device {device_id}] Video loop exception: {e}")
+        logger.error(f"[Device {device_id}] Error: {e}", exc_info=True)
     finally:
-        state.clients.pop(device_id, None)
+        # 남은 작업 완료 대기
+        if pending_tasks:
+            await asyncio.gather(*pending_tasks, return_exceptions=True)
+        
+        # 클라이언트 목록에서 제거
+        if device_id in state.clients:
+            state.clients.pop(device_id)
+        
+        # 마지막 결과 캐시에서 제거
+        if device_id in last_device_results:
+            del last_device_results[device_id]
+        
+        # 연결 종료
         try:
-            if websocket.application_state != WebSocketState.DISCONNECTED:
+            if websocket.application_state == WebSocketState.CONNECTED:
                 await websocket.close()
         except Exception as close_err:
-            logger.warning(f"[Device {device_id}] Error closing websocket: {close_err}")
-        # 녹화 종료 시점과 시작 시점의 차이를 계산하여 지속 시간을 구합니다.
-        duration = time.time() - start_time
-        await asyncio.to_thread(create_video_from_images, folder, duration)
+            logger.debug(f"[Device {device_id}] Error during websocket close: {close_err}")
+        
+        # 통계 출력
+        total_time = time.time() - start_time
+        avg_fps = frame_count / total_time if total_time > 0 else 0
+        logger.info(f"[Device {device_id}] Disconnected, processed {frame_count} frames, avg FPS: {avg_fps:.2f}")
+
+# 애플리케이션 시작/종료 이벤트 핸들러
+async def startup_event():
+    logger.info("Application started, HTTP client initialized")
+
+async def shutdown_event():
+    await http_client.aclose()
+    logger.info("Application shutdown complete")
