@@ -16,17 +16,21 @@ const GoogleMapView = ({
   const isLoaded = window.google && window.google.maps;
   const [map, setMap] = useState(null);
   const [selectedMarker, setSelectedMarker] = useState(null);
+  
+  // 초기 중심 좌표 (역삼역)
+  const initialCenter = {
+    lat: 37.501263, 
+    lng: 127.039615
+  };
+  
+  // 맵 위치와 줌 레벨 상태 관리 추가
+  const [mapCenter, setMapCenter] = useState(initialCenter);
+  const [mapZoom, setMapZoom] = useState(20);
 
   // 구글맵 컨테이너 스타일
   const containerStyle = {
     width: '100%',
     height: '100%'
-  };
-
-  // 초기 중심 좌표 (역삼역)
-  const center = {
-    lat: 37.501263, 
-    lng: 127.039615
   };
   
   // 맵 스타일 (다크 모드) - 최적화
@@ -93,7 +97,7 @@ const GoogleMapView = ({
   const getAlarmPosition = (alarm) => {
     if (!isValidAlarm(alarm)) {
       console.warn('유효하지 않은 알람 좌표:', alarm);
-      return center; // 기본 위치로 폴백
+      return initialCenter; // 기본 위치로 폴백
     }
     
     try {
@@ -103,7 +107,7 @@ const GoogleMapView = ({
       };
     } catch (error) {
       console.error('좌표 처리 오류:', error);
-      return center; // 기본 위치로 폴백
+      return initialCenter; // 기본 위치로 폴백
     }
   };
   
@@ -139,7 +143,7 @@ const GoogleMapView = ({
     }
   };
 
-  // 새 알람 생성 시 지도 이동 처리 - 안전하게 처리
+  // 새 알람 생성 시 지도 이동 처리 - 안전하게 처리하고 상태 업데이트
   useEffect(() => {
     if (newAlarmId && map) {
       const newAlarm = alarmHistory.find(alarm => alarm && alarm.alarm_id === newAlarmId);
@@ -148,6 +152,10 @@ const GoogleMapView = ({
           const position = getAlarmPosition(newAlarm);
           map.panTo(position);
           map.setZoom(20);
+          
+          // 맵 상태 업데이트
+          setMapCenter(position);
+          setMapZoom(20);
         } catch (error) {
           console.error('새 알람으로 이동 중 오류:', error);
         }
@@ -155,28 +163,87 @@ const GoogleMapView = ({
     }
   }, [newAlarmId, alarmHistory, map]);
 
-  // 맵 로드 핸들러
+  // 맵 로드 핸들러 - 이벤트 리스너 추가
   const handleMapLoad = (mapInstance) => {
     console.log("Google Map loaded:", mapInstance);
     if (mapRef && typeof mapRef === 'object') {
       mapRef.current = mapInstance;
     }
     setMap(mapInstance);
+    
+    // 맵 이동 이벤트 리스너 추가
+    mapInstance.addListener('dragend', () => {
+      const newCenter = mapInstance.getCenter();
+      if (newCenter) {
+        setMapCenter(newCenter.toJSON());
+      }
+    });
+    
+    // 줌 변경 이벤트 리스너 추가
+    mapInstance.addListener('zoom_changed', () => {
+      const newZoom = mapInstance.getZoom();
+      if (newZoom) {
+        setMapZoom(newZoom);
+      }
+    });
   };
 
   // 마커 클릭 핸들러
   const handleMarkerClick = (alarm) => {
     setSelectedMarker(alarm);
+    
+    // 현재 맵 위치와 줌 상태 저장 (유지하기 위해)
+    if (map) {
+      const currentCenter = map.getCenter();
+      const currentZoom = map.getZoom();
+      
+      if (currentCenter) {
+        setMapCenter(currentCenter.toJSON());
+      }
+      
+      if (currentZoom) {
+        setMapZoom(currentZoom);
+      }
+    }
   };
 
   // 인포윈도우 닫기 핸들러
   const handleInfoWindowClose = () => {
     setSelectedMarker(null);
+    
+    // 현재 맵 위치와 줌 상태 저장 (유지하기 위해)
+    if (map) {
+      const currentCenter = map.getCenter();
+      const currentZoom = map.getZoom();
+      
+      if (currentCenter) {
+        setMapCenter(currentCenter.toJSON());
+      }
+      
+      if (currentZoom) {
+        setMapZoom(currentZoom);
+      }
+    }
   };
 
   // 상세 정보 보기 핸들러
   const handleDetailClick = (alarm) => {
     setSelectedMarker(null);
+    
+    // 현재 맵 위치와 줌 상태 저장 (유지하기 위해)
+    if (map) {
+      const currentCenter = map.getCenter();
+      const currentZoom = map.getZoom();
+      
+      if (currentCenter) {
+        setMapCenter(currentCenter.toJSON());
+      }
+      
+      if (currentZoom) {
+        setMapZoom(currentZoom);
+      }
+    }
+    
     if (openAlarmDetails && typeof openAlarmDetails === 'function') {
       openAlarmDetails(alarm);
     }
@@ -187,13 +254,6 @@ const GoogleMapView = ({
     if (!alarmHistory || !Array.isArray(alarmHistory) || !window.google) {
       return [];
     }
-    
-    console.log("🗺️ 렌더링할 알람 데이터:", alarmHistory.map(a => ({
-      alarm_id: a.alarm_id,
-      alarm_type: a.alarm_type,
-      recognized_type: a.recognized_type,
-      is_warning_or_danger: a.alarm_type === 'Warning' || a.alarm_type === 'Danger'
-    })));
     
     return alarmHistory
       .filter(alarm => isValidAlarm(alarm))
@@ -210,8 +270,8 @@ const GoogleMapView = ({
               position={position}
               mapPaneName={OverlayView.OVERLAY_LAYER}
               getPixelPositionOffset={(width, height) => ({
-                x: -width / 2,
-                y: -height / 2
+                x: -40, // 80px 너비의 절반
+                y: -40  // 80px 높이의 절반
               })}
             >
               <div 
@@ -265,8 +325,8 @@ const GoogleMapView = ({
                   position={position}
                   mapPaneName={OverlayView.OVERLAY_LAYER}
                   getPixelPositionOffset={(width, height) => ({
-                    x: -width / 2,
-                    y: -height / 2
+                    x: -50, // 펄스 원의 너비(100px)의 절반
+                    y: -50  // 펄스 원의 높이(100px)의 절반
                   })}
                 >
                   <div className="map-pulse-effect">
@@ -310,8 +370,8 @@ const GoogleMapView = ({
       {isLoaded ? (
         <GoogleMap
           mapContainerStyle={containerStyle}
-          center={center}
-          zoom={20}
+          center={mapCenter}
+          zoom={mapZoom}
           options={mapOptions}
           onLoad={handleMapLoad}
         >
