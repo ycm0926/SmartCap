@@ -59,18 +59,9 @@ export const getAlarmColor = (type, isNew = false) => {
       case 'Danger':
         return '#ff9500';
       case 'Accident':
-      case 'Falling':
-        return '#ff2d55';
-      case 'Material':
-        return '#34c759';
-      case 'Vehicle':
-        return '#5ac8fa';
-      case 'Worker':
-        return '#af52de';
-      case 'Equipment':
-        return '#ff9500';
+        return '#ff0000';
       default:
-        return '#5856d6';
+        return '#ff0000';
     }
   }
 
@@ -81,18 +72,9 @@ export const getAlarmColor = (type, isNew = false) => {
     case 'Danger':
       return '#E76A1F';
     case 'Accident':
-    case 'Falling':
-      return '#ff4d4f';
-    case 'Material':
-      return '#4CAF50';
-    case 'Vehicle':
-      return '#2196F3';
-    case 'Worker':
-      return '#9C27B0';
-    case 'Equipment':
-      return '#FF9800';
+      return '#ff0000';
     default:
-      return '#7986cb';
+      return '#ff0000';
   }
 };
 

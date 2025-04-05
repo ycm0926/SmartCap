@@ -139,8 +139,6 @@ const GoogleMapView = ({
     }
   };
 
-  
-
   // 새 알람 생성 시 지도 이동 처리 - 안전하게 처리
   useEffect(() => {
     if (newAlarmId && map) {
@@ -190,17 +188,25 @@ const GoogleMapView = ({
       return [];
     }
     
+    console.log("🗺️ 렌더링할 알람 데이터:", alarmHistory.map(a => ({
+      alarm_id: a.alarm_id,
+      alarm_type: a.alarm_type,
+      recognized_type: a.recognized_type,
+      is_warning_or_danger: a.alarm_type === 'Warning' || a.alarm_type === 'Danger'
+    })));
+    
     return alarmHistory
       .filter(alarm => isValidAlarm(alarm))
-      .map(alarm => {
+      .map((alarm, index) => {
         const isNew = alarm.alarm_id === newAlarmId;
         const position = getAlarmPosition(alarm);
+        const uniqueKey = `alarm-${alarm.alarm_id || Date.now()}-${index}`;
         
         // Warning, Danger 알림은 원형으로 표시
         if (alarm.alarm_type === 'Warning' || alarm.alarm_type === 'Danger') {
           return (
             <OverlayView
-              key={alarm.alarm_id || `alarm-${Math.random()}`}
+              key={uniqueKey}
               position={position}
               mapPaneName={OverlayView.OVERLAY_LAYER}
               getPixelPositionOffset={(width, height) => ({
@@ -240,39 +246,39 @@ const GoogleMapView = ({
               </div>
             </OverlayView>
           );
-        }
-      
-        // 일반 마커는 인식 타입에 따라 색상 변경
-        return (
-          <React.Fragment key={alarm.alarm_id || `marker-${Math.random()}`}>
-            {/* 기본 마커 */}
-            <Marker
-              position={position}
-              icon={getMarkerIcon(alarm.recognized_type, isNew)}
-              onClick={() => handleMarkerClick(alarm)}
-              animation={isNew ? window.google.maps.Animation.BOUNCE : null}
-              zIndex={isNew ? 1000 : 1}
-            />
-            
-            {/* 새 알람인 경우 펄스 효과 오버레이 추가 */}
-            {isNew && (
-              <OverlayView
+        } else {
+          // 그 외 타입 (Accident, Falling 등)은 마커로 표시
+          return (
+            <React.Fragment key={uniqueKey}>
+              {/* 기본 마커 */}
+              <Marker
                 position={position}
-                mapPaneName={OverlayView.OVERLAY_LAYER}
-                getPixelPositionOffset={(width, height) => ({
-                  x: -width / 2,
-                  y: -height / 2
-                })}
-              >
-                <div className="map-pulse-effect">
-                  <div className="pulse-circle" style={{
-                    backgroundColor: `${getAlarmColor(alarm.recognized_type, true)}40`
-                  }}></div>
-                </div>
-              </OverlayView>
-            )}
-          </React.Fragment>
-        );
+                icon={getMarkerIcon(alarm.recognized_type, isNew)}
+                onClick={() => handleMarkerClick(alarm)}
+                animation={isNew ? window.google.maps.Animation.BOUNCE : null}
+                zIndex={isNew ? 1000 : 1}
+              />
+              
+              {/* 새 알람인 경우 펄스 효과 오버레이 추가 */}
+              {isNew && (
+                <OverlayView
+                  position={position}
+                  mapPaneName={OverlayView.OVERLAY_LAYER}
+                  getPixelPositionOffset={(width, height) => ({
+                    x: -width / 2,
+                    y: -height / 2
+                  })}
+                >
+                  <div className="map-pulse-effect">
+                    <div className="pulse-circle" style={{
+                      backgroundColor: `${getAlarmColor(alarm.recognized_type, true)}40`
+                    }}></div>
+                  </div>
+                </OverlayView>
+              )}
+            </React.Fragment>
+          );
+        }
       });
   }, [alarmHistory, newAlarmId, window.google]);
   

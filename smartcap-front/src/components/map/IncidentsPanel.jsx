@@ -9,6 +9,7 @@ const IncidentsPanel = ({ alarmHistory, newAlarmId, openAlarmDetails, getAlarmTy
     
     switch(alarmType) {
       case 'Accident':
+        return '#ff0000';
       case 'Falling': 
         return "#ff0000";
       case 'Danger': 
@@ -16,7 +17,7 @@ const IncidentsPanel = ({ alarmHistory, newAlarmId, openAlarmDetails, getAlarmTy
       case 'Warning': 
         return "#FFC107";
       default: 
-        return "#2196f3";
+        return "#ff0000";
     }
   };
 
@@ -67,20 +68,21 @@ const IncidentsPanel = ({ alarmHistory, newAlarmId, openAlarmDetails, getAlarmTy
         <p>감지된 알람이 없습니다.</p>
       ) : (
         <ul>
-          {alarmHistory
-            .filter(alarm => isValidAlarm(alarm)) // 유효한 알람만 필터링
-            .map(alarm => {
-              const isNew = alarm.alarm_id === newAlarmId;
-              const hasVideo = alarm.accident_id || 
-                              alarm.recognized_type === 'Falling' || 
-                              alarm.alarm_type === 'Accident';
-              
-              return (
-                <li 
-                  key={alarm.alarm_id || `alarm-${Math.random()}`} // alarm_id 없을 경우 대비
-                  onClick={() => openAlarmDetails(alarm)}
-                  className={`${isNew ? 'new-incident' : ''} ${hasVideo ? 'has-video' : ''}`}
-                >
+            {alarmHistory
+              .filter(alarm => isValidAlarm(alarm))
+              .map((alarm, index) => {
+                const isNew = alarm.alarm_id === newAlarmId;
+                const hasVideo = alarm.accident_id || 
+                                alarm.recognized_type === 'Falling' || 
+                                alarm.alarm_type === 'Accident';
+                const uniqueKey = `alarm-${alarm.alarm_id || Date.now()}-${index}`;
+                
+                return (
+                  <li 
+                    key={uniqueKey}
+                    onClick={() => openAlarmDetails(alarm)}
+                    className={`${isNew ? 'new-incident' : ''} ${hasVideo ? 'has-video' : ''}`}
+                  >
                   <div className="incident-icon">
                     <AlertTriangle 
                       size={18} 
