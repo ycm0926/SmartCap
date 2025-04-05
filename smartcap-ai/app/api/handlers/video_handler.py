@@ -11,7 +11,7 @@ import httpx
 from starlette.websockets import WebSocketState, WebSocketDisconnect
 
 from app.core.redis_client import redis_client
-from app.models.run_model import run_model
+from app.services.detection_orchestrator import run_model
 from app.api import state
 from app.core.image_preprocessing import preprocess_frame
 
