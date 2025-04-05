@@ -64,21 +64,13 @@ async def handle_video_device(websocket, device_id: int):
     # 최신 데이터 저장용 변수와 이벤트 선언 (항상 최신 프레임만 보유)
     latest_data = None
     data_event = asyncio.Event()
-    # 누적 time_diff (건너뛴 프레임들의 time_diff를 포함)
-    accumulated_time_diff = 0
 
     # 웹소켓에서 프레임을 계속 받아 최신 데이터를 갱신하는 수신 태스크
     async def frame_receiver():
-        nonlocal latest_data, data_event, accumulated_time_diff
+        nonlocal latest_data, data_event
         try:
             while websocket.application_state == WebSocketState.CONNECTED:
                 data = await websocket.receive()
-                # 만약 아직 소비되지 않은 이전 데이터가 있다면, 해당 데이터의 time_diff를 누적
-                if latest_data is not None and "bytes" in latest_data:
-                    binary_data = latest_data["bytes"]
-                    if len(binary_data) >= 4:
-                        prev_interval = int.from_bytes(binary_data[:4], byteorder='little')
-                        accumulated_time_diff += prev_interval
                 latest_data = data
                 data_event.set()
         except Exception as e:
@@ -96,24 +88,20 @@ async def handle_video_device(websocket, device_id: int):
                 await asyncio.wait_for(data_event.wait(), timeout=0.1)
             except asyncio.TimeoutError:
                 continue
-            # 이벤트 발생 시 clear하고 최신 데이터 사용
+            # 이벤트가 발생하면 clear하고 최신 데이터 사용
             data_event.clear()
             data = latest_data
             
             frame = None
-            capture_interval = 0  # 기본값 0
+            capture_interval = None
             
             # 바이너리 데이터 처리
             if "bytes" in data:
                 binary_data = data["bytes"]
                 if len(binary_data) < 4:
                     continue
-                # 현재 프레임의 time_diff 추출
-                current_interval = int.from_bytes(binary_data[:4], byteorder='little')
-                # 누적된 건너뛴 프레임의 time_diff와 합산
-                capture_interval = current_interval + accumulated_time_diff
-                # 누적 변수 초기화
-                accumulated_time_diff = 0
+                
+                capture_interval = int.from_bytes(binary_data[:4], byteorder='little')
                 image_data = binary_data[4:]
                 frame_data = np.frombuffer(image_data, dtype=np.uint8)
                 frame = await asyncio.to_thread(cv2.imdecode, frame_data, cv2.IMREAD_COLOR)
@@ -140,13 +128,14 @@ async def handle_video_device(websocket, device_id: int):
                 
                 # 어안렌즈 보정
                 processed_frame = await asyncio.to_thread(preprocess_frame, frame)
+                time_diff = capture_interval if capture_interval is not None else 0
                 
-                # 모델 실행 (순서대로) - 누적 time_diff 반영
+                # 모델 실행 (순서대로)
                 model_start = time.time()
-                result = await asyncio.to_thread(run_model, processed_frame, capture_interval)
+                result = await asyncio.to_thread(run_model, processed_frame, time_diff)
                 model_time = time.time() - model_start
                 
-                logger.info(f"[Device {device_id}] Frame #{frame_count}, result: {result}, model time: {model_time:.4f}s, time_diff: {capture_interval}ms")
+                logger.info(f"[Device {device_id}] Frame #{frame_count}, result: {result}, model time: {model_time:.4f}s")
                 
                 # 결과 처리 (0이 아닐 때만)
                 if result != 0:
@@ -166,9 +155,11 @@ async def handle_video_device(websocket, device_id: int):
                     result_changed = device_id not in last_device_results or result != last_device_results[device_id]
                     
                     if result_changed:
+                        # 백엔드 알림 (비동기) - 결과가 변경됐을 때만
                         async def send_notification():
                             await notify_backend(device_id, result)
                         
+                        # 디바이스 2로 전송
                         async def send_to_device2():
                             target_device = 2
                             if target_device in state.clients:
@@ -178,14 +169,18 @@ async def handle_video_device(websocket, device_id: int):
                                 except Exception as e:
                                     logger.error(f"[Device {device_id}] Error sending to device {target_device}: {e}")
                         
+                        # 결과 업데이트
                         last_device_results[device_id] = result
                         
+                        # 비동기 작업 시작
                         redis_task = asyncio.create_task(save_to_redis())
                         notify_task = asyncio.create_task(send_notification())
                         device2_task = asyncio.create_task(send_to_device2())
                         
+                        # 작업 추적에 추가
                         pending_tasks = [redis_task, notify_task, device2_task]
                     else:
+                        # 결과가 변경되지 않았을 때는 Redis만 저장
                         redis_task = asyncio.create_task(save_to_redis())
                         pending_tasks = [redis_task]
                         logger.debug(f"[Device {device_id}] Skipping notifications - result unchanged: {result}")
