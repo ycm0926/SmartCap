@@ -8,7 +8,7 @@ export default function AccidentSSE() {
 
   useEffect(() => {
     console.log("🔄 Accident SSE 연결 시도...");
-    const accidentEs = new EventSource(`${BASE_URL}/api/accident/subscribe`);
+    const accidentEs = new EventSource(`${BASE_URL}/api/sse/accident/subscribe`);
 
     es.onopen = () => {
       console.log("✅ Accident SSE 연결 성공!");
