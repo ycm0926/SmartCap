@@ -7,6 +7,7 @@ import kr.kro.smartcap.smartcap_back.alarm.repository.AlarmHistoryRepository;
 import kr.kro.smartcap.smartcap_back.alarm.sse.AlarmSseEmitterHandler;
 import kr.kro.smartcap.smartcap_back.common.dto.CategoryInfo;
 import kr.kro.smartcap.smartcap_back.common.util.AlarmCategoryMapper;
+import kr.kro.smartcap.smartcap_back.stats.service.RedisStatService;
 import lombok.RequiredArgsConstructor;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -22,6 +23,7 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 @Service
@@ -32,6 +34,8 @@ public class AlarmProcessingService {
     private final RedisTemplate<String, String> redisTemplate;
     private final RedisTemplate<String, Object> objectRedisTemplate;
     private final AlarmSseEmitterHandler alarmSseEmitterHandler;
+    private final RedisStatService redisStatService;
+
 
     private static final Logger logger = LoggerFactory.getLogger(AlarmProcessingService.class);
 
@@ -45,7 +49,9 @@ public class AlarmProcessingService {
 
         alarmHistoryRedisDto.setAlarmType(info.getCode());
         alarmHistoryRedisDto.setRecognizedType(info.getCategory());
-        alarmHistoryRedisDto.setCreatedAt(Timestamp.from(Instant.now()));
+
+        LocalDateTime ldt = LocalDateTime.now();
+        alarmHistoryRedisDto.setCreatedAt(Timestamp.valueOf(ldt));
 
         // 디폴트 현장 ID 설정
         alarmHistoryRedisDto.setConstructionSitesId(1L);
@@ -74,6 +80,13 @@ public class AlarmProcessingService {
         String key = String.format("alarm:%d:%s", siteId, LocalDate.now());
         objectRedisTemplate.opsForList().rightPush(key, alarmHistoryRedisDto);
         objectRedisTemplate.expire(key, Duration.ofDays(2));
+
+        // 레디스 통계 업데이트
+        redisStatService.incrementStats(
+                alarmHistoryRedisDto.getCreatedAt().toLocalDateTime(),
+                alarmHistoryRedisDto.getRecognizedType(),
+                alarmHistoryRedisDto.getAlarmType()
+        );
 
         // SSE 전송
         alarmSseEmitterHandler.sendAlarmToClients(alarmHistoryRedisDto);

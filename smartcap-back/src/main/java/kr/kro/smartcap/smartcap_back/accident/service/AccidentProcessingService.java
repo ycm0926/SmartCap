@@ -8,6 +8,7 @@ import kr.kro.smartcap.smartcap_back.accident.repository.AccidentHistoryReposito
 import kr.kro.smartcap.smartcap_back.accident.sse.AccidentSseEmitterHandler;
 import kr.kro.smartcap.smartcap_back.common.dto.CategoryInfo;
 import kr.kro.smartcap.smartcap_back.common.util.AlarmCategoryMapper;
+import kr.kro.smartcap.smartcap_back.stats.service.RedisStatService;
 import lombok.RequiredArgsConstructor;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -23,6 +24,7 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -37,6 +39,8 @@ public class AccidentProcessingService {
     // Redis 템플릿: gps, 날씨 등 문자열 데이터를 위한 템플릿과 객체 데이터를 위한 템플릿
     private final RedisTemplate<String, String> redisTemplate;
     private final RedisTemplate<String, Object> objectRedisTemplate;
+
+    private final RedisStatService redisStatService;
 
     private static final Logger logger = LoggerFactory.getLogger(AccidentProcessingService.class);
 
@@ -78,7 +82,9 @@ public class AccidentProcessingService {
         }
 
         accidentHistoryRedisDto.setAccidentType(accidentTypeStr);
-        Timestamp now = Timestamp.from(Instant.now());
+
+        LocalDateTime ldt = LocalDateTime.now();
+        Timestamp now = Timestamp.valueOf(ldt);
         accidentHistoryRedisDto.setCreatedAt(now);
 
         // Redis에서 GPS 정보 조회 ("gps {deviceId}" 키 사용)
@@ -146,6 +152,13 @@ public class AccidentProcessingService {
             logger.info("Accident event processed without AccidentVideo.");
         }
 
+        // 레디스 통계 업데이트
+        redisStatService.incrementStats(
+                accidentHistoryRedisDto.getCreatedAt().toLocalDateTime(),
+                accidentHistoryRedisDto.getAccidentType(),
+                "3"
+        );
+
         // SSE를 통한 실시간 알림 전송을 위해 Redis DTO를 AccidentHistory 엔티티로 변환
         AccidentHistory accidentHistoryForSse = convertToAccidentHistory(accidentHistoryRedisDto);
 
@@ -155,6 +168,7 @@ public class AccidentProcessingService {
             accidentHistoryForSse.setAccidentId(Math.abs(UUID.randomUUID().getLeastSignificantBits()));
             logger.info("Temporary accident ID generated for SSE: {}", accidentHistoryForSse.getAccidentId());
         }
+
 
         // SSE 알림 전송 (프론트엔드로 실시간 사고/알림 전달)
         accidentSseEmitterHandler.sendAccidentToClients(accidentHistoryForSse, accidentVideo);
