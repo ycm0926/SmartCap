@@ -61,31 +61,36 @@ async def handle_video_device(websocket, device_id: int):
     last_fps_check = time.time()
     frames_since_check = 0
     
+    # 최신 데이터 저장용 변수와 이벤트 선언 (항상 최신 프레임만 보유)
+    latest_data = None
+    data_event = asyncio.Event()
+
+    # 웹소켓에서 프레임을 계속 받아 최신 데이터를 갱신하는 수신 태스크
+    async def frame_receiver():
+        nonlocal latest_data, data_event
+        try:
+            while websocket.application_state == WebSocketState.CONNECTED:
+                data = await websocket.receive()
+                latest_data = data
+                data_event.set()
+        except Exception as e:
+            logger.error(f"[Device {device_id}] Receiver error: {e}")
+    
+    receiver_task = asyncio.create_task(frame_receiver())
+    
     # 비동기 작업 추적
     pending_tasks = []
     
     try:
         while websocket.application_state == WebSocketState.CONNECTED:
             try:
-                # 짧은 타임아웃으로 데이터 수신 대기
-                data = await asyncio.wait_for(websocket.receive(), timeout=0.1)
-                # 수신 대기 시 1회만 추가로 받아서 최신 프레임으로 대체
-                try:
-                    next_data = await asyncio.wait_for(websocket.receive(), timeout=0.001)
-                    data = next_data
-                except asyncio.TimeoutError:
-                    pass
+                # 0.1초 대기하며 새로운 데이터가 있을 때까지 기다림
+                await asyncio.wait_for(data_event.wait(), timeout=0.1)
             except asyncio.TimeoutError:
-                # 타임아웃 시 계속 진행
                 continue
-            except WebSocketDisconnect:
-                logger.info(f"[Device {device_id}] WebSocket disconnected cleanly")
-                break
-            except RuntimeError as e:
-                if "disconnect" in str(e):
-                    logger.info(f"[Device {device_id}] WebSocket disconnected (RuntimeError)")
-                    break
-                raise
+            # 이벤트가 발생하면 clear하고 최신 데이터 사용
+            data_event.clear()
+            data = latest_data
             
             frame = None
             capture_interval = None
@@ -193,26 +198,18 @@ async def handle_video_device(websocket, device_id: int):
     except Exception as e:
         logger.error(f"[Device {device_id}] Error: {e}", exc_info=True)
     finally:
-        # 남은 작업 완료 대기
+        receiver_task.cancel()
         if pending_tasks:
             await asyncio.gather(*pending_tasks, return_exceptions=True)
-        
-        # 클라이언트 목록에서 제거
         if device_id in state.clients:
             state.clients.pop(device_id)
-        
-        # 마지막 결과 캐시에서 제거
         if device_id in last_device_results:
             del last_device_results[device_id]
-        
-        # 연결 종료
         try:
             if websocket.application_state == WebSocketState.CONNECTED:
                 await websocket.close()
         except Exception as close_err:
             logger.debug(f"[Device {device_id}] Error during websocket close: {close_err}")
-        
-        # 통계 출력
         total_time = time.time() - start_time
         avg_fps = frame_count / total_time if total_time > 0 else 0
         logger.info(f"[Device {device_id}] Disconnected, processed {frame_count} frames, avg FPS: {avg_fps:.2f}")
