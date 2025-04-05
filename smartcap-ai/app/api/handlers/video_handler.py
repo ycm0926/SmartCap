@@ -69,6 +69,12 @@ async def handle_video_device(websocket, device_id: int):
             try:
                 # 짧은 타임아웃으로 데이터 수신 대기
                 data = await asyncio.wait_for(websocket.receive(), timeout=0.1)
+                # 수신 대기 시 1회만 추가로 받아서 최신 프레임으로 대체
+                try:
+                    next_data = await asyncio.wait_for(websocket.receive(), timeout=0.001)
+                    data = next_data
+                except asyncio.TimeoutError:
+                    pass
             except asyncio.TimeoutError:
                 # 타임아웃 시 계속 진행
                 continue
