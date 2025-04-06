@@ -1,16 +1,17 @@
 import logging
 from fastapi import WebSocket
-
 from app.api.handlers.video_handler import handle_video_device
 from app.api.handlers.gps_handler import handle_gps_device
+from app.api.handlers.command_handle import handle_command_device
 
 logger = logging.getLogger(__name__)
 
 async def websocket_endpoint(websocket: WebSocket, device_id: str):
     await websocket.accept()
     logger.info(f"[Device {device_id}] Connection accepted")
-
     if device_id == "1":
-        await handle_video_device(websocket, 23) # deviceId 23전달
+        await handle_video_device(websocket, 23)  # deviceId 23 전달
     elif device_id == "2":
-        await handle_gps_device(websocket, 23) # deviceId 23전달
+        await handle_gps_device(websocket, 23)  # deviceId 23 전달
+    elif device_id == "3":
+        await handle_command_device(websocket, 23)  # deviceId 23 전달

@@ -12,3 +12,6 @@ scipy
 lap
 ultralytics
 cython_bbox
+redis
+python-dotenv
+httpx
