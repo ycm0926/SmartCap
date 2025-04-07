@@ -2,15 +2,15 @@ package kr.kro.smartcap.smartcap_back.accident.entity;
 
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
+import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.PrecisionModel;
+import org.locationtech.jts.io.WKBReader;
 import org.locationtech.jts.io.WKTReader;
 
 @Converter(autoApply = true)
 public class GeometryConverter implements AttributeConverter<Point, String> {
-
-    // SRID 4326을 지정한 GeometryFactory 생성
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
 
     @Override
@@ -18,10 +18,7 @@ public class GeometryConverter implements AttributeConverter<Point, String> {
         if (attribute == null) {
             return null;
         }
-        // JTS의 toText() 결과는 "POINT (127.1234 37.5678)" 형태가 나오므로, 공백을 제거하여 "POINT(127.1234 37.5678)"로 변환
-        String wktText = attribute.toText().replace("POINT (", "POINT(");
-        // EWKT 형식: "SRID=4326;POINT(127.1234 37.5678)"
-        return "SRID=4326;" + wktText;
+        return "SRID=4326;" + attribute.toText().replace("POINT (", "POINT(");
     }
 
     @Override
@@ -30,18 +27,27 @@ public class GeometryConverter implements AttributeConverter<Point, String> {
             return null;
         }
 
-        // 데이터가 실제로 유효한지 추가 확인
-        if (dbData.equals("POINT EMPTY") || dbData.equals("SRID=4326;POINT EMPTY")) {
-            return null;
-        }
-
-        String wkt = dbData;
-        if (wkt.startsWith("SRID=4326;")) {
-            wkt = wkt.substring("SRID=4326;".length());
-        }
-
         try {
-            // 추가 유효성 검사
+            // WKB 형식 처리를 위한 로직 추가
+            if (dbData.startsWith("0101000020E6100000")) {
+                // WKB to Geometry 변환
+                byte[] wkb = hexStringToByteArray(dbData);
+                WKBReader reader = new WKBReader(geometryFactory);
+                Geometry geometry = reader.read(wkb);
+
+                if (geometry instanceof Point) {
+                    Point point = (Point) geometry;
+                    point.setSRID(4326);
+                    return point;
+                }
+            }
+
+            // 기존 WKT 처리 로직
+            String wkt = dbData;
+            if (wkt.startsWith("SRID=4326;")) {
+                wkt = wkt.substring("SRID=4326;".length());
+            }
+
             if (!wkt.toUpperCase().startsWith("POINT")) {
                 return null;
             }
@@ -51,10 +57,19 @@ public class GeometryConverter implements AttributeConverter<Point, String> {
             point.setSRID(4326);
             return point;
         } catch (Exception e) {
-            // 예외를 던지는 대신 로그를 남기고 null 반환
             System.err.println("지오메트리 변환 오류: " + dbData + " - " + e.getMessage());
             return null;
         }
     }
 
+    // 16진수 문자열을 바이트 배열로 변환하는 헬퍼 메서드
+    private byte[] hexStringToByteArray(String hexString) {
+        int len = hexString.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(hexString.charAt(i), 16) << 4)
+                    + Character.digit(hexString.charAt(i+1), 16));
+        }
+        return data;
+    }
 }
