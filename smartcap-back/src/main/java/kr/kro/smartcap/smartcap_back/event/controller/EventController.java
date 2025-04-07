@@ -227,6 +227,37 @@ public class EventController {
                 return dto;
             }).collect(Collectors.toList());
 
+            //7일치 알람 가져오기
+
+            // 3. DB에서 과거 알람 데이터 가져오기 (최근 7일 데이터만)
+            List<AlarmHistory> alarms = alarmHistoryRepository.findAllFromLast7Days(sevenDaysAgo);
+
+            // 4. DB 사고 데이터를 AccidentDTO로 변환
+            List<AccidentDTO> alarmDTOs = alarms.stream().map(entity -> {
+                AccidentDTO dto = new AccidentDTO();
+                dto.setAlarm_id(entity.getAlarmId());
+                dto.setConstruction_sites_id(entity.getConstructionSitesId());
+                dto.setAlarm_type(entity.getAlarmType());
+                dto.setRecognized_type(entity.getRecognizedType());
+                dto.setWeather(entity.getWeather());
+                dto.setCreated_at(entity.getCreatedAt().toLocalDateTime());
+
+                // GPS
+                if (entity.getGps() != null) {
+                    GpsDTO gps = new GpsDTO();
+                    gps.setType("Point");
+                    gps.setCoordinates(new double[]{entity.getGps().getX(), entity.getGps().getY()});
+                    dto.setGps(gps);
+                    System.out.print(entity.getGps().getX());
+                    System.out.print(entity.getGps().getY());
+                }
+                System.out.print(entity.getGps());
+
+                return dto;
+            }).collect(Collectors.toList());
+
+            accidentDTOs.addAll(alarmDTOs);
+
             // 5. 최종 응답 생성 전 필터링 및 제한
             List<AlarmDTO> filteredAlarms = recentAlarms.stream()
                     .filter(alarm -> alarm.getCreated_at() != null && alarm.getCreated_at().isAfter(sevenDaysAgo))
