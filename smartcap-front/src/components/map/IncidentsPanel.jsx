@@ -164,12 +164,8 @@ const IncidentsPanel = ({ alarmHistory, newAlarmId, openAlarmDetails, getAlarmTy
         </ul>
       )}
       
-      {/* 정렬 및 필터 옵션 추가 */}
-      <div className="incidents-controls">
-        <button className="incidents-control-btn active">모든 알람</button>
-        <button className="incidents-control-btn">사고만</button>
-        <button className="incidents-control-btn">오늘</button>
-      </div>
+ 
+    
       
       {/* 스타일은 기존과 동일하므로 생략 */}
       <style jsx>{`
