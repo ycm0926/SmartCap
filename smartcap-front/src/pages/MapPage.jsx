@@ -1,20 +1,17 @@
-// MapPage.jsx
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import '../styles/MapPage.css';
 import { useAlarmStore } from '../store/alarmStore';
 import axios from 'axios';
 
-import AlarmSSE from '../components/AlarmSSE'; // 추가: SSE 컴포넌트 임포트
+import AlarmSSE from '../components/AlarmSSE';
 import MapHeader from '../components/map/MapHeader';
 import GoogleMapView from '../components/map/GoogleMapView';
 import IncidentsPanel from '../components/map/IncidentsPanel';
 import AlarmDetailModal from '../components/map/AlarmDetailModal';
 import { getAlarmTypeText, getRecognizedTypeText, getMarkerIcon, getAlarmColor } from '../utils/mapUtils';
 
-
 const MapPage = () => {
-  // 알람 스토어에서 알람 목록 가져오기
   const alarms = useAlarmStore((state) => state.alarms);
   const addAlarm = useAlarmStore((state) => state.addAlarm);
   
@@ -29,7 +26,7 @@ const MapPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isInitialMount = useRef(true);
-  const alarmProcessedRef = useRef(new Set()); // 이미 처리된 알람 ID 관리
+  const alarmProcessedRef = useRef(new Set());
 
   // 알람의 최신 순 정렬 처리 메모이제이션
   const sortedAlarms = useMemo(() => {
@@ -38,17 +35,16 @@ const MapPage = () => {
   }, [alarms]);
 
   // 백엔드에서 지도 데이터를 가져오는 함수
-  // MapPage.jsx - fetchMapData 함수 수정
   const fetchMapData = useCallback(async () => {
     try {
       setIsLoading(true);
       
-      // 필요한 데이터만 요청하도록 파라미터 추가
+      // axios 요청 시 withCredentials 옵션 추가
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/events/map`, {
-
         params: {
           limit: 50  // 최근 50개 알람만 요청
         },
+        withCredentials: true, // 중요: 쿠키 포함
         timeout: 10000  // 10초 타임아웃 설정
       });
       
@@ -127,12 +123,15 @@ const MapPage = () => {
     } catch (error) {
       console.error('지도 데이터를 가져오는 중 오류 발생:', error);
       setIsLoading(false);
+      
+      // 오류 발생 시 로그인 페이지로 리다이렉트
+      if (error.response && (error.response.status === 403 || error.response.status === 401)) {
+        navigate('/login');
+      }
     }
-  }, []);
-
+  }, [navigate]);
 
   // 초기 데이터 로드
- // MapPage.jsx - useEffect 부분 수정
   useEffect(() => {
     let isMounted = true;
     

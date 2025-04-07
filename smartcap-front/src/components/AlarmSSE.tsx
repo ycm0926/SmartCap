@@ -226,8 +226,7 @@ export default function AlarmSSE() {
   const setupAlarmSSEConnection = () => {
     try {
       console.log("🔄 알람 SSE 연결 시도...");
-      
-      const es = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/sse/alarms/subscribe`);
+      const es = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/sse/alarms/subscribe`, { withCredentials: true });
       alarmConnectionRef.current.eventSource = es;
 
       console.log(es.url);
@@ -392,7 +391,7 @@ export default function AlarmSSE() {
     try {
       console.log("🔄 사고 SSE 연결 시도...");
       
-      const es = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/sse/accident/subscribe`);
+      const es = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/sse/accident/subscribe`, { withCredentials: true });
       accidentConnectionRef.current.eventSource = es;
       
       // 사고 버퍼링
