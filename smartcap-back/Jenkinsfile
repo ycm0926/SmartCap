@@ -19,6 +19,9 @@ pipeline {
         AWS_SECRET_ACCESS_KEY = "${env.AWS_SECRET_ACCESS_KEY}"
 
         WEATHER_API_KEY = "${env.WEATHER_API_KEY}"
+
+        front.url = "${env.FRONT_URL}"
+        rememberme.key = "${env.REMEMBER_ME_KEY}"
     }
 
     stages {
@@ -45,6 +48,8 @@ pipeline {
                     echo "REDIS_PASSWORD: $REDIS_PASSWORD"
                     echo "AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID"
                     echo "AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY"
+                    echo "FRONT_URL: $front.url"
+                    echo "REMEMBER_ME_KEY: $rememberme.key"
                 '''
             }
         }
@@ -90,6 +95,8 @@ pipeline {
                             -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
                             -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
                             -e WEATHER_API_KEY=$WEATHER_API_KEY \
+                            -e FRONT_URL=$front.url \
+                            -e REMEMBER_ME_KEY=$rememberme.key \
                             smartcap-back
                     '''
                 }
