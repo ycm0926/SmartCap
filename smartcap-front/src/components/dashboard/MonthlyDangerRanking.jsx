@@ -33,17 +33,36 @@ export const MonthlyDangerRanking = () => {
       // 카테고리별 이름 매핑
       let displayName;
       switch (category) {
-        case 'car':
-          displayName = `차량 위험 ${level || ''} 단계`;
+        case '차량':
+          displayName = `차량 ${getLevelName(level)}`;
           break;
-        case 'fall':
-          displayName = `추락 위험 ${level || ''} 단계`;
+        case '낙상':
+          displayName = `추락 ${getLevelName(level)} `;
           break;
-        case 'material':
-          displayName = `자재 위험 ${level || ''} 단계`;
+        case '건설 자재':
+          displayName = ` 건설 자재 ${getLevelName(level)} `;
+          break;
+        case '원인 불명':
+          displayName = `원인 불명`;
           break;
         default:
           displayName = stat.field;
+      }
+      
+      // 레벨에 대한 한글 이름 매핑 함수
+      function getLevelName(level) {
+        switch(level) {
+          case '1': return '경고';
+          case '2': return '위험';
+          case '3': return '사고';
+          case '4': return '경고';
+          case '5': return '위험';
+          case '6': return '사고';
+          case '7': return '경고';
+          case '8': return '위험';
+          case '9': return '사고';
+          default: return level || '';
+        }
       }
       
       acc.push({
@@ -74,6 +93,20 @@ export const MonthlyDangerRanking = () => {
     }
   };
 
+  // 레벨별 색상 매핑 함수 추가
+  const getLevelColor = (level) => {
+    // 레벨 값에 따라 색상 반환
+    if (['1', '4', '7'].includes(level)) {
+      return '#ffdd00'; // 경고 - 노란색
+    } else if (['2', '5', '8'].includes(level)) {
+      return '#ff9500'; // 위험 - 주황색
+    } else if (['3', '6', '9'].includes(level)) {
+      return '#ff0000'; // 사고 - 빨간색
+    } else {
+      return '#ff0000'; // 기본 색상
+    }
+  };
+
   return (
     <div className="bg-[#0d1117] text-white rounded-md shadow-lg p-4 relative overflow-hidden" style={{ height: boardHeight, minHeight: "300px" }}>
       {/* 배경 글로우 효과 */}
@@ -95,8 +128,9 @@ export const MonthlyDangerRanking = () => {
               {data.map((d) => (
                 <tr key={d.name} className="border-b border-gray-800">
                   <td className="py-3 flex items-center">
-                    <span 
-                      className={`inline-block w-3 h-3 rounded-full mr-2 ${getCategoryColor(d.category)}`}
+                   <span 
+                      className="inline-block w-3 h-3 rounded-full mr-2"
+                      style={{ backgroundColor: getLevelColor(d.level) }}
                     ></span>
                     {d.name}
                   </td>
@@ -104,9 +138,12 @@ export const MonthlyDangerRanking = () => {
                   <td className="py-3">
                     <div className="flex items-center">
                       <div className="w-full bg-gray-800 rounded-full h-2 relative overflow-hidden mr-2">
-                        <div
-                          className={`progress-bar-glow ${getCategoryColor(d.category)} h-2 rounded-full transition-all duration-500`}
-                          style={{ width: `${(d.value / max) * 100}%` }}
+                       <div
+                          className="progress-bar-glow h-2 rounded-full transition-all duration-500"
+                          style={{ 
+                            width: `${(d.value / max) * 100}%`,
+                            backgroundColor: getLevelColor(d.level)
+                          }}
                         />
                       </div>
                       <span className="text-xs text-gray-400 whitespace-nowrap">
