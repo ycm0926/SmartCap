@@ -42,7 +42,6 @@ public class SecurityConfig {
                 )
                 .csrf(AbstractHttpConfigurer::disable)
                 .formLogin(Customizer.withDefaults())
-                .httpBasic(Customizer.withDefaults())
                 .rememberMe(rememberMe -> rememberMe
                         .tokenValiditySeconds(30 * 24 * 60 * 60) // 30일 동안 로그인 유지
                         .key("uniqueAndSecret") // 고유한 키 지정 (추후 환경변수로 보안 업그레이드 필요)
