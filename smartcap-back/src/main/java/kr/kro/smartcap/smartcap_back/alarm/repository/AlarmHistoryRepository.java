@@ -24,4 +24,10 @@ public interface AlarmHistoryRepository extends JpaRepository<AlarmHistory, Long
 
     @Query("SELECT MIN(a.createdAt) FROM AlarmHistory a")
     Optional<LocalDateTime> findEarliestCreatedAt();
+
+    @Query("""
+    SELECT a FROM AlarmHistory a
+    WHERE a.createdAt >= :sevenDaysAgo
+""")
+    List<AlarmHistory> findAllFromLast7Days(LocalDateTime sevenDaysAgo);
 }
