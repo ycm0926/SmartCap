@@ -37,7 +37,7 @@ def run_risk_detection_pipeline(frame, frame_ms):
     frame_count = _thread_local.frame_count
     # 다음 호출을 위해 증가
     _thread_local.frame_count += 1
-    print(f"프레임 카운트: {_thread_local.frame_count}")
+    
     # 1. YOLO 모델로 객체 감지
     yolo_results = run_inference(frame)
     
