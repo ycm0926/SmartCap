@@ -1,32 +1,26 @@
 // src/services/authService.js
-const MY_URL = import.meta.env.VITE_API_BASE_URL;
-const API_URL = '/api/auth';
+import axios from 'axios';
 
 const authService = {
-  login: async (loginId, password, rememberMe = false) => {
+  login: async (loginId, password, rememberMe) => {
     try {
-      const response = await fetch(`${MY_URL+API_URL}/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          loginId, 
-          password, 
-          rememberMe: rememberMe // 필드명이 DTO와 일치해야 함
-        }),
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Login failed');
-      }
-
-      const data = await response.text();
-      return data;
+      const response = await axios.post('/api/auth/login', 
+        { loginId, password, rememberMe },
+        {
+          baseURL: import.meta.env.VITE_API_BASE_URL,
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      return response.data;
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Login error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        headers: error.response?.headers
+      });
       throw error;
     }
   }
