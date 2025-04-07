@@ -48,8 +48,8 @@ pipeline {
                     echo "REDIS_PASSWORD: $REDIS_PASSWORD"
                     echo "AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID"
                     echo "AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY"
-                    echo "FRONT_URL: $front.url"
-                    echo "REMEMBER_ME_KEY: $rememberme.key"
+                    echo "FRONT_URL: $FRONT_URL"
+                    echo "REMEMBER_ME_KEY: $REMEMBER_ME_KEY"
                 '''
             }
         }
