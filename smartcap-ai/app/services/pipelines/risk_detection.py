@@ -5,9 +5,12 @@ from app.services.pipelines.harzard_model_runner import run_inference
 from app.services.risk_detection.fall_zone import detect_fall_zone_risks
 from app.services.risk_detection.vehicles import detect_vehicle_risks
 import concurrent.futures
+import threading
 
+# 쓰레드 로컬 저장소 생성
+_thread_local = threading.local()
 
-def run_risk_detection_pipeline(frame, frame_count):
+def run_risk_detection_pipeline(frame, frame_ms):
     """
     위험 감지 파이프라인을 실행합니다.
     
@@ -19,8 +22,7 @@ def run_risk_detection_pipeline(frame, frame_count):
     
     Parameters:
         frame: 처리할 영상 프레임 (전처리된 상태)
-        frame_count: 프레임 번호
-        
+        frame_ms: 프레임의 지연 시간 (사용하지 않음)
     Returns:
         int: 위험 단계 (0-8)
             0: 안전
@@ -28,7 +30,14 @@ def run_risk_detection_pipeline(frame, frame_count):
             4-5: 낙상 관련 (4: 1차 알림, 5: 2차 알림)
             7-8: 차량 관련 (7: 1차 알림, 8: 2차 알림)
     """
-
+    if not hasattr(_thread_local, 'frame_count'):
+        _thread_local.frame_count = 0
+    
+    # 현재 값 가져오기
+    frame_count = _thread_local.frame_count
+    # 다음 호출을 위해 증가
+    _thread_local.frame_count += 1
+    
     # 1. YOLO 모델로 객체 감지
     yolo_results = run_inference(frame)
     
