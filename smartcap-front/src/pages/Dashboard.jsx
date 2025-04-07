@@ -30,7 +30,7 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    const eventSource = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/sse`);
+    const eventSource = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/sse/stat`);
   
     const updateStat = useStatsStore.getState().updateStat;
   

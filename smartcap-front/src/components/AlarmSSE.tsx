@@ -59,8 +59,8 @@ export default function AlarmSSE() {
   });
   
   // 하트비트 체크를 위한 타이머 참조
-  const alarmHeartbeatTimerRef = useRef<number | null>(null);
-  const accidentHeartbeatTimerRef = useRef<number | null>(null);
+  const alarmHeartbeatTimerRef = useRef<any>(null);
+  const accidentHeartbeatTimerRef = useRef<any>(null);
   
   // 중복 알람 체크 함수
   const isDuplicateAlarm = (alarmId: string | number): boolean => {
@@ -229,10 +229,13 @@ export default function AlarmSSE() {
       
       const es = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/sse/alarms/subscribe`);
       alarmConnectionRef.current.eventSource = es;
+
+      console.log(es.url);
+
       
       // 알람 버퍼링
       let alarmBuffer: any[] = [];
-      let bufferTimer: number | null = null;
+      let bufferTimer: ReturnType<typeof setTimeout>;
       
       // 버퍼 처리 함수
       const processAlarmBuffer = () => {
@@ -389,12 +392,13 @@ export default function AlarmSSE() {
     try {
       console.log("🔄 사고 SSE 연결 시도...");
       
-      const es = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/accident/subscribe`);
+      const es = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/sse/accident/subscribe`);
       accidentConnectionRef.current.eventSource = es;
       
       // 사고 버퍼링
       let accidentBuffer: any[] = [];
-      let bufferTimer: number | null = null;
+      let bufferTimer: ReturnType<typeof setTimeout>;
+
       
       // 버퍼 처리 함수
       const processAccidentBuffer = () => {
