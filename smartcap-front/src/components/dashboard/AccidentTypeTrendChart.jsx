@@ -22,9 +22,9 @@ export const AccidentTypeTrendChart = () => {
   // 알람 레벨 정의 (데이터에 맞게 수정)
   const alarmLevels = ["1", "2", "3"];
   const alarmLevelNames = {
-    "1": "1단계 알람",
-    "2": "2단계 알람",
-    "3": "사고 알람"
+    "1": "경고",
+    "2": "위험",
+    "3": "사고"
   };
   
   // 필터링 함수
@@ -189,7 +189,7 @@ export const AccidentTypeTrendChart = () => {
     };
   };
   
-  // 차트 데이터 가공
+  // 먼저 기존 processChartData 함수를 수정하여 레벨별로 데이터를 분리합니다.
   const processChartData = (currentData, previousData) => {
     // 사고 타입별로 데이터 집계
     const typeData = {};
@@ -200,16 +200,29 @@ export const AccidentTypeTrendChart = () => {
         name: typeName,
         current: 0,
         previous: 0,
+        level1: 0,  // 1단계 알람 (노랑)
+        level2: 0,  // 2단계 알람 (주황)
+        level3: 0,  // 3단계 알람 (빨강)
         percentChange: 0
       };
     });
     
-    // 현재 데이터 합산 (실제 필드 형식에 맞게 수정)
+    // 현재 데이터를 레벨별로 분리하여 합산
     currentData.forEach(stat => {
-      const [type] = stat.field.split(':');
+      const [type, level] = stat.field.split(':');
       // ACCIDENT_TYPES에 포함된 타입만 처리
       if (ACCIDENT_TYPES.includes(type)) {
+        // 전체 합계는 유지
         typeData[type].current += stat.count;
+        
+        // 레벨별로 데이터 분리
+        if (level === '1') {
+          typeData[type].level1 += stat.count;
+        } else if (level === '2') {
+          typeData[type].level2 += stat.count;
+        } else if (level === '3') {
+          typeData[type].level3 += stat.count;
+        }
       }
     });
     
@@ -222,7 +235,7 @@ export const AccidentTypeTrendChart = () => {
       }
     });
     
-    // 변화율 계산 - 소수점 처리 수정
+    // 변화율 계산
     Object.values(typeData).forEach(item => {
       // 정수로 반올림 (소수점 없음)
       item.previous = Math.round(item.previous);
@@ -238,7 +251,7 @@ export const AccidentTypeTrendChart = () => {
     
     return Object.values(typeData);
   };
-  
+
   // 필터링 및 집계된 데이터
   const chartData = useMemo(() => {
     const result = processDataByPeriod();
@@ -251,13 +264,17 @@ export const AccidentTypeTrendChart = () => {
   // 막대 색상 (현재, 이전)
   const currentBarColor = "#3B82F6"; // 파란색
   const previousBarColor = "#9CA3AF"; // 회색
-  
+  const level1BarColor = "#ffdd00"; // 노란색 (1단계/경고)
+  const level2BarColor = "#ff9500"; // 주황색 (2단계/위험)
+  const level3BarColor = "#ff0000"; // 빨간색 (3단계/사고)
+
+
   // 알람 레벨 필터 레이블 (데이터에 맞게 수정)
   const alarmFilterLabels = {
     'all': '전체',
-    '1': '1단계 알람',
-    '2': '2단계 알람',
-    '3': '사고 알람'
+    '1': '경고',
+    '2': '위험',
+    '3': '사고'
   };
   
   // 데이터가 없을 때 메시지 표시
@@ -324,8 +341,9 @@ export const AccidentTypeTrendChart = () => {
             <BarChart
               data={chartData.data}
               margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-              barGap={10}
-              barCategoryGap={40}
+              barGap={2} // 굉장히 좁은 간격으로 설정 (완전히 0으로 하지 않고 미세한 간격 유지)
+              barCategoryGap={25} // 카테고리 간 간격도 조금 더 줄임
+              maxBarSize={60} // 막대 최대 너비 제한
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
               <XAxis 
@@ -343,24 +361,31 @@ export const AccidentTypeTrendChart = () => {
                 itemStyle={{ color: '#e5e7eb' }}
                 labelStyle={{ color: '#e5e7eb', fontWeight: 'bold' }}
                 formatter={(value, name) => {
-                  if (name === 'current') return [value, '현재'];
                   if (name === 'previous') return [value, '이전 평균'];
+                  if (name === 'level1') return [value, '경고'];
+                  if (name === 'level2') return [value, '위험'];
+                  if (name === 'level3') return [value, '사고'];
                   return [value, name];
                 }}
+                cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} // 툴팁 배경 투명도 조정
               />
               <Legend 
                 formatter={(value) => {
-                  if (value === 'current') return '현재';
                   if (value === 'previous') return '이전 평균';
+                  if (value === 'level1') return '경고';
+                  if (value === 'level2') return '위험';
+                  if (value === 'level3') return '사고';
                   return value;
                 }}
                 wrapperStyle={{ paddingTop: '10px' }}
               />
+              
+              {/* 이전 평균 막대 */}
               <Bar 
                 dataKey="previous" 
-                name="이전 평균" 
+                name="previous" 
                 fill={previousBarColor}
-                radius={[4, 4, 0, 0]}
+                animationDuration={1000} // 애니메이션 시간 추가
               >
                 <LabelList 
                   dataKey="previous" 
@@ -370,22 +395,43 @@ export const AccidentTypeTrendChart = () => {
                   formatter={(value) => value > 0 ? value : ''}
                 />
               </Bar>
+              
+              {/* 레벨별 막대 - 스택 형태로 처리 */}
               <Bar 
-                dataKey="current" 
-                name="현재" 
-                fill={currentBarColor}
-                radius={[4, 4, 0, 0]}
+                dataKey="level1" 
+                name="level1" 
+                stackId="current" 
+                fill={level1BarColor} 
+                animationDuration={800} // 애니메이션 시간 추가
+                // 각 막대 구간 사이의 여백 없애기
+                background={{ fill: 'transparent' }}
+              />
+              <Bar 
+                dataKey="level2" 
+                name="level2" 
+                stackId="current"
+                fill={level2BarColor}
+                animationDuration={900} // 애니메이션 시간 추가
+                background={{ fill: 'transparent' }}
+              />
+              <Bar 
+                dataKey="level3" 
+                name="level3" 
+                stackId="current"
+                fill={level3BarColor}
+                animationDuration={1000} // 애니메이션 시간 추가
+                background={{ fill: 'transparent' }}
               >
                 <LabelList 
                   dataKey="current" 
                   position="top" 
-                  fill="#3B82F6" 
+                  fill="#ffffff" 
                   fontSize={12}
                   formatter={(value) => value > 0 ? value : ''}
                 />
               </Bar>
             </BarChart>
-          </ResponsiveContainer>
+          </ResponsiveContainer>    
         </div>
         
         {/* 변화율 표시 - 소수점 제거 */}
