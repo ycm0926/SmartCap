@@ -2,19 +2,29 @@
 
 /**
  * 알람 타입에 따른 텍스트 반환
- * @param {string} type 알람 타입
+ * @param {string|number} type 알람 타입 (1, 2, 3 또는 'Warning', 'Danger', 'Accident')
  * @returns {string} 사용자에게 표시할 텍스트
  */
 export const getAlarmTypeText = (type) => {
-  switch (type) {
-    case 'Warning':
+  // 타입이 없거나 undefined면 '알 수 없음' 반환
+  if (type === undefined || type === null) {
+    return '알 수 없음';
+  }
+  
+  // 문자열로 변환하여 비교 (숫자 1과 문자열 '1'을 동일하게 처리)
+  const typeStr = String(type).trim();
+  
+  switch (typeStr) {
+    case '1':
     case '1차':
-    case '1': 
+    case 'Warning':
       return '경고';
-    case 'Danger':
+    case '2':
     case '2차':
-    case '2': 
+    case 'Danger':
       return '위험';
+    case '3':
+    case '3차':
     case 'Accident':
       return '사고';
     default:
@@ -28,6 +38,10 @@ export const getAlarmTypeText = (type) => {
  * @returns {string} 사용자에게 표시할 텍스트
  */
 export const getRecognizedTypeText = (type) => {
+  if (type === undefined || type === null) {
+    return '알 수 없음';
+  }
+  
   switch (type) {
     case 'Material':
       return '자재';
@@ -46,19 +60,26 @@ export const getRecognizedTypeText = (type) => {
 
 /**
  * 알람/사고 타입에 따른 색상 코드 반환
- * @param {string} type 알람/인식 타입
+ * @param {string|number} type 알람/인식 타입
  * @param {boolean} isNew 새 알람 여부
  * @returns {string} 색상 코드
  */
 export const getAlarmColor = (type, isNew = false) => {
+  // 타입을 문자열로 변환
+  const typeStr = String(type).trim();
+  
   // 새 알람이면 강조 색상 사용
   if (isNew) {
-    switch (type) {
+    switch (typeStr) {
+      case '1':
       case 'Warning':
         return '#ffdd00';
+      case '2':
       case 'Danger':
         return '#ff9500';
+      case '3':
       case 'Accident':
+      case 'Falling':
         return '#ff0000';
       default:
         return '#ff0000';
@@ -66,12 +87,16 @@ export const getAlarmColor = (type, isNew = false) => {
   }
 
   // 일반 알람 색상
-  switch (type) {
+  switch (typeStr) {
+    case '1':
     case 'Warning':
       return '#FFC107';
+    case '2':
     case 'Danger':
       return '#E76A1F';
+    case '3':
     case 'Accident':
+    case 'Falling':
       return '#ff0000';
     default:
       return '#ff0000';
@@ -80,9 +105,9 @@ export const getAlarmColor = (type, isNew = false) => {
 
 /**
  * 알람/사고 타입에 따른 마커 아이콘 URL 반환
- * @param {string} type 알람/인식 타입
+ * @param {string|number} type 알람/인식 타입
  * @param {boolean} isNew 새 알람 여부
- * @returns {string} 아이콘 URL
+ * @returns {object} Google Maps 마커 아이콘 설정
  */
 export const getMarkerIcon = (type, isNew = false) => {
   // 실제로는 Google Map API와 함께 사용할 마커 아이콘 형식을 반환
@@ -94,8 +119,6 @@ export const getMarkerIcon = (type, isNew = false) => {
       <path fill="${color}" d="M172.268 501.67C26.97 291.031 0 269.413 0 192 0 85.961 85.961 0 192 0s192 85.961 192 192c0 77.413-26.97 99.031-172.268 309.67-9.535 13.774-29.93 13.773-39.464 0zM192 272c44.183 0 80-35.817 80-80s-35.817-80-80-80-80 35.817-80 80 35.817 80 80 80z"/>
     </svg>
   `;
-  
-
   
   return {
     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svgMarker)}`,

@@ -249,7 +249,21 @@ const GoogleMapView = ({
     }
   };
 
-  // 마커 렌더링 최적화 - useMemo 사용하여
+  // GoogleMapView.jsx 내의 마커 렌더링 로직 업데이트
+
+  // 알람 타입 숫자 변환 헬퍼 함수 추가
+  const normalizeAlarmType = (typeValue) => {
+    if (typeValue === undefined || typeValue === null) return "Warning";
+    
+    const typeStr = String(typeValue).trim();
+    if (typeStr === "1" || typeStr === "1차") return "Warning";
+    if (typeStr === "2" || typeStr === "2차") return "Danger";
+    if (typeStr === "3" || typeStr === "3차") return "Accident";
+    
+    return typeValue; // 이미 문자열 타입이면 그대로 반환
+  };
+
+  // 마커 렌더링 로직 (customMarkers useMemo 내부)
   const customMarkers = useMemo(() => {
     if (!alarmHistory || !Array.isArray(alarmHistory) || !window.google) {
       return [];
@@ -262,8 +276,11 @@ const GoogleMapView = ({
         const position = getAlarmPosition(alarm);
         const uniqueKey = `alarm-${alarm.alarm_id || Date.now()}-${index}`;
         
+        // 알람 타입 정규화
+        const normalizedAlarmType = normalizeAlarmType(alarm.alarm_type);
+        
         // Warning, Danger 알림은 원형으로 표시
-        if (alarm.alarm_type === 'Warning' || alarm.alarm_type === 'Danger') {
+        if (normalizedAlarmType === 'Warning' || normalizedAlarmType === 'Danger') {
           return (
             <OverlayView
               key={uniqueKey}
@@ -281,7 +298,7 @@ const GoogleMapView = ({
                   width: '80px',
                   height: '80px',
                   borderRadius: '50%',
-                  backgroundColor: alarm.alarm_type === 'Warning' 
+                  backgroundColor: normalizedAlarmType === 'Warning' 
                     ? 'rgba(255, 193, 7, 0.4)' 
                     : 'rgba(255, 87, 34, 0.4)', 
                   border: 'none',
@@ -298,7 +315,7 @@ const GoogleMapView = ({
                     bottom: 0,
                     borderRadius: '50%',
                     animation: 'pulse 1.5s infinite',
-                    backgroundColor: alarm.alarm_type === 'Warning' 
+                    backgroundColor: normalizedAlarmType === 'Warning' 
                       ? 'rgba(255, 193, 7, 0.2)' 
                       : 'rgba(255, 152, 0, 0.2)',
                   }}></div>

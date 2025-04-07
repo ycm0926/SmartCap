@@ -91,14 +91,26 @@ export default function AlarmSSE() {
   
   // 알람 데이터를 Alarm 타입으로 변환하고 필수 필드를 확인/보완하는 함수
   const normalizeAlarmData = (data: any): Alarm => {
-    // 알람 타입 정규화
+    // 알람 타입 정규화 (백엔드에서 1, 2, 3 형식으로 전달되는 경우 처리)
     let normalizedType = data.alarm_type;
-    if (data.alarm_type === '1차' || data.alarm_type === '1') {
+    
+    // 숫자형 또는 문자열 숫자로 들어온 경우 처리
+    if (normalizedType !== undefined && normalizedType !== null) {
+      const typeStr = String(normalizedType).trim();
+      
+      if (typeStr === '1' || typeStr === '1차') {
       normalizedType = 'Warning';
-    } else if (data.alarm_type === '2차' || data.alarm_type === '2') {
+      } else if (typeStr === '2' || typeStr === '2차') {
       normalizedType = 'Danger';
-    } else if (!normalizedType && data.accident_id) {
+      } else if (typeStr === '3' || typeStr === '3차' || data.accident_id) {
+        normalizedType = 'Accident';
+      }
+    } else if (data.accident_id) {
+      // accident_id가 있으면 'Accident' 타입으로 설정
       normalizedType = 'Accident';
+    } else {
+      // 기본값 설정
+      normalizedType = 'Warning';
     }
     
     // alarm_id가 전혀 없다면, 프론트에서 고유한 ID 생성
@@ -141,6 +153,16 @@ export default function AlarmSSE() {
         };
       }
     }
+
+    // recognized_type이 없는 경우 기본값 설정
+    if (!data.recognized_type) {
+      // 사고인 경우 기본적으로 'Falling'으로 설정
+      if (normalizedType === 'Accident' || data.accident_id) {
+        data.recognized_type = 'Falling';
+      } else {
+        data.recognized_type = 'Unknown';
+      }
+    }
     
     // 필수 필드 확인 (alarmStore.ts의 Alarm 타입과 일치하도록)
     const normalizedData: Alarm = {
@@ -149,12 +171,12 @@ export default function AlarmSSE() {
       weather_id: data.weather_id,
       gps: data.gps,
       alarm_type: normalizedType,
-      recognized_type: data.recognized_type || "Unknown",
+      recognized_type: data.recognized_type,
       created_at: data.created_at,
       accident_id: data.accident_id || null,
       site_name: data.site_name,
       construction_status: data.construction_status,
-      weather: data.weather
+      weather: data.weather,
     };
     
     return normalizedData;
