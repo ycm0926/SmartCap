@@ -20,8 +20,8 @@ pipeline {
 
         WEATHER_API_KEY = "${env.WEATHER_API_KEY}"
 
-        front.url = "${env.FRONT_URL}"
-        rememberme.key = "${env.REMEMBER_ME_KEY}"
+        FRONT_URL = "${env.FRONT_URL}"
+        REMEMBER_ME_KEY = "${env.REMEMBER_ME_KEY}"
     }
 
     stages {
