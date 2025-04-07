@@ -521,7 +521,6 @@ public class EventController {
             // 알람 데이터 복사
             accident.setAlarm_id(alarm.getAlarm_id());
             accident.setConstruction_sites_id(alarm.getConstruction_sites_id());
-            accident.setWeather_id(alarm.getWeather_id());
             accident.setGps(alarm.getGps());
             accident.setAlarm_type(alarm.getAlarm_type());
             accident.setRecognized_type(alarm.getRecognized_type());
