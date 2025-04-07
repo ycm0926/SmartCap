@@ -1,5 +1,4 @@
 // src/services/authService.js
-// const API_URL = '/api/auth';
 const MY_URL = import.meta.env.VITE_API_BASE_URL;
 const API_URL = '/api/auth';
 
@@ -11,8 +10,12 @@ const authService = {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ loginId, password, remember: rememberMe }),
-        credentials: 'include', // Important for cookies
+        body: JSON.stringify({ 
+          loginId, 
+          password, 
+          rememberMe: rememberMe // 필드명이 DTO와 일치해야 함
+        }),
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -30,4 +33,3 @@ const authService = {
 };
 
 export default authService;
-
