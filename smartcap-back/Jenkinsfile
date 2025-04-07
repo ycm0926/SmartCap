@@ -95,8 +95,8 @@ pipeline {
                             -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
                             -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
                             -e WEATHER_API_KEY=$WEATHER_API_KEY \
-                            -e FRONT_URL=$front.url \
-                            -e REMEMBER_ME_KEY=$rememberme.key \
+                            -e FRONT_URL=$FRONT_URL \
+                            -e REMEMBER_ME_KEY=$REMEMBER_ME_KEY \
                             smartcap-back
                     '''
                 }
