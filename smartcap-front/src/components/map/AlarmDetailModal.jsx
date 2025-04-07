@@ -6,6 +6,12 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
   // 모달이 열리지 않거나 선택된 알람이 없으면 렌더링하지 않음
   if (!showModal || !selectedAlarm) return null;
 
+  // 문자열 변환을 위한 헬퍼 함수
+  const safeString = (value) => {
+    if (value === undefined || value === null) return "";
+    return String(value);
+  };
+
   // 날씨에 따른 아이콘 렌더링 함수 - 오류 처리 추가
   const getWeatherIcon = (weather) => {
     if (!weather) return <Cloud size={20} color="#CCCCCC" />;
@@ -30,17 +36,42 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
     }
   };
 
+  // 알람 타입 정규화 함수
+  const normalizeAlarmType = (alarmType) => {
+    if (alarmType === undefined || alarmType === null) return "Warning";
+    
+    const typeStr = safeString(alarmType).trim();
+    if (typeStr === "1" || typeStr === "1차") return "Warning";
+    if (typeStr === "2" || typeStr === "2차") return "Danger";
+    if (typeStr === "3" || typeStr === "3차") return "Accident";
+    
+    return alarmType; // 이미 변환된 값이면 그대로 반환
+  };
+
   // 알람 타입에 따른 배지 색상 반환 - 안전한 처리
   const getAlarmBadgeColor = (alarmType) => {
     if (!alarmType) return '#808080'; // 기본값
     
     try {
-      switch(alarmType) {
-        case 'Danger': return '#E76A1F'; // 다홍색
-        case 'Warning': return '#FFC107'; // 노란색
+      // 알람 타입 정규화
+      const normalizedType = normalizeAlarmType(alarmType);
+      
+      switch(normalizedType) {
+        case '1':
+        case '1차':
+        case 'Warning': 
+          return '#FFC107'; // 노란색
+        case '2':
+        case '2차':
+        case 'Danger': 
+          return '#E76A1F'; // 다홍색
+        case '3':
+        case '3차':
         case 'Accident':
-        case 'Falling': return '#ff0000'; // 빨간색
-        default: return '#ff0000'; // 기본 주황색
+        case 'Falling': 
+          return '#ff0000'; // 빨간색
+        default: 
+          return '#808080'; // 기본 회색
       }
     } catch (error) {
       console.error("알람 배지 색상 처리 오류:", error);
@@ -87,6 +118,33 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
     }
   };
 
+  // 비디오 표시 여부 확인
+  const shouldShowEmergencyButton = () => {
+    const alarmType = safeString(selectedAlarm.alarm_type);
+    return alarmType === 'Accident' || 
+           alarmType === '3' || 
+           alarmType === '3차' ||
+           selectedAlarm.recognized_type === 'Falling' || 
+           selectedAlarm.accident_id;
+  };
+
+  // 배지에 표시할 알람 타입 텍스트
+  const getBadgeText = () => {
+    try {
+      const rawType = selectedAlarm.alarm_type;
+      const typeStr = safeString(rawType);
+      
+      if (typeStr === '1' || typeStr === '1차') return 'Warning';
+      if (typeStr === '2' || typeStr === '2차') return 'Danger';
+      if (typeStr === '3' || typeStr === '3차') return 'Accident';
+      
+      return rawType || '알 수 없음';
+    } catch (error) {
+      console.error("배지 텍스트 처리 오류:", error);
+      return '알 수 없음';
+    }
+  };
+
   return (
     <div className="modal-overlay" onClick={handleCloseModal}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -95,7 +153,7 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
         <div className="modal-header">
           <h2>{getAlarmTypeText ? getAlarmTypeText(selectedAlarm.alarm_type) : selectedAlarm.alarm_type} 상세 정보</h2>
           <span className="alarm-type-badge" style={{ backgroundColor: getAlarmBadgeColor(selectedAlarm.alarm_type) }}>
-            {selectedAlarm.alarm_type || '알 수 없음'}
+            {getBadgeText()}
           </span>
         </div>
         
@@ -129,11 +187,6 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
               <span className="detail-value">{getRecognizedTypeText ? getRecognizedTypeText(selectedAlarm.recognized_type) : selectedAlarm.recognized_type || '알 수 없음'}</span>
             </div>
             
-            <div className="detail-item">
-              <span className="detail-icon"><HardHat size={16} /></span>
-              <span className="detail-label">안전모 번호:</span>
-              <span className="detail-value">{selectedAlarm.device_id || 'N/A'}</span>
-            </div>
             
             <div className="detail-item">
               <span className="detail-icon"><Calendar size={16} /></span>
@@ -178,9 +231,7 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
         
         <div className="action-buttons">
           {/* 사고나 낙상인 경우에만 긴급 구조 요청 버튼 표시 */}
-          {(selectedAlarm.alarm_type === 'Accident' || 
-            selectedAlarm.recognized_type === 'Falling' || 
-            selectedAlarm.accident_id) && (
+          {shouldShowEmergencyButton() && (
             <button className="btn-primary">긴급 구조 요청</button>
           )}
         </div>

@@ -3,17 +3,29 @@ import React from 'react';
 import { AlertTriangle, MapPin, Clock, HardHat } from 'lucide-react';
 
 const IncidentsPanel = ({ alarmHistory, newAlarmId, openAlarmDetails, getAlarmTypeText, getRecognizedTypeText }) => {
-  // Get color based on alarm type
+  // 문자열 변환을 위한 헬퍼 함수
+  const safeString = (value) => {
+    if (value === undefined || value === null) return "";
+    return String(value);
+  };
+
+  // Get color based on alarm type - 숫자형 타입 지원
   const getAlarmIconColor = (alarmType, isNew) => {
     if (isNew) return "#ff0000";
     
-    switch(alarmType) {
+    // 문자열로 변환하여 비교
+    const typeStr = safeString(alarmType).trim();
+    
+    switch(typeStr) {
+      case '3':
       case 'Accident':
         return '#ff0000';
       case 'Falling': 
         return "#ff0000";
+      case '2':
       case 'Danger': 
         return "#E76A1F";
+      case '1':
       case 'Warning': 
         return "#FFC107";
       default: 
@@ -60,6 +72,25 @@ const IncidentsPanel = ({ alarmHistory, newAlarmId, openAlarmDetails, getAlarmTy
   const isValidAlarm = (alarm) => {
     return alarm && typeof alarm === 'object';
   };
+  
+  // 알람 타입과 인식 타입 안전하게 표시
+  const displayAlarmType = (alarm) => {
+    try {
+      return getAlarmTypeText(alarm.alarm_type);
+    } catch (error) {
+      console.error("알람 타입 표시 오류:", error);
+      return "알 수 없음";
+    }
+  };
+  
+  const displayRecognizedType = (alarm) => {
+    try {
+      return getRecognizedTypeText(alarm.recognized_type);
+    } catch (error) {
+      console.error("인식 타입 표시 오류:", error);
+      return "알 수 없음";
+    }
+  };
 
   return (
     <div className="incidents-panel">
@@ -74,6 +105,7 @@ const IncidentsPanel = ({ alarmHistory, newAlarmId, openAlarmDetails, getAlarmTy
                 const isNew = alarm.alarm_id === newAlarmId;
                 const hasVideo = alarm.accident_id || 
                                 alarm.recognized_type === 'Falling' || 
+                                safeString(alarm.alarm_type) === '3' ||
                                 alarm.alarm_type === 'Accident';
                 const uniqueKey = `alarm-${alarm.alarm_id || Date.now()}-${index}`;
                 
@@ -93,7 +125,7 @@ const IncidentsPanel = ({ alarmHistory, newAlarmId, openAlarmDetails, getAlarmTy
                   <div className="incident-info">
                     <div className="incident-header">
                       <div className="incident-type">
-                        {getAlarmTypeText(alarm.alarm_type)} - {getRecognizedTypeText(alarm.recognized_type)}
+                        {displayAlarmType(alarm)} - {displayRecognizedType(alarm)}
                         {alarm.weather && (
                           <span className={`weather-badge ${getWeatherClass(alarm.weather)}`} 
                                 title={alarm.weather}>
@@ -111,10 +143,6 @@ const IncidentsPanel = ({ alarmHistory, newAlarmId, openAlarmDetails, getAlarmTy
                     </div>
 
                     <div className="incident-meta">
-                      <div className="incident-device">
-                        <HardHat size={14} />
-                        안전모 #{alarm.device_id || 'N/A'}
-                      </div>
                       
                       <div className="incident-location">
                         <MapPin size={14} />
@@ -143,7 +171,7 @@ const IncidentsPanel = ({ alarmHistory, newAlarmId, openAlarmDetails, getAlarmTy
         <button className="incidents-control-btn">오늘</button>
       </div>
       
-      {/* 스타일 추가 */}
+      {/* 스타일은 기존과 동일하므로 생략 */}
       <style jsx>{`
         .incidents-panel {
           width: 350px;
