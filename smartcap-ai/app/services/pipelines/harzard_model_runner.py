@@ -2,7 +2,7 @@ from ultralytics import YOLO
 import os
 
 # 모델 파일 경로 설정 - 위험 감지 세그멘테이션 모델 v1 사용
-MODEL_PATH = os.path.join("ai_models", "harzard_detector_seg_v1.pt")
+MODEL_PATH = os.path.join("ai_models", "yolo11n-seg.pt")
 
 # YOLO 모델 로드 - 사전 훈련된 위험 감지 모델 초기화
 model = YOLO(MODEL_PATH)
