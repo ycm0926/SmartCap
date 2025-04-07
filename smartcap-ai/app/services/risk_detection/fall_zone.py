@@ -1,12 +1,13 @@
 import numpy as np
 from app.config import RiskSeverity
 import math
+from app.core.angle_tracker import get_tracker
 
 # 계단 위험 감지 설정
 FIRST_ALERT_SCORE_THRESHOLD = 2  # 1차 알림 프레임 임계값: 하행 계단은 가파르기 때문에 인지 후, 점수가 2점 이상인 경우 알림
 BOTTOM_POINT_DISAPPEAR_THRESHOLD = 0.99  # 밑면 꼭짓점 소실 임계값 (화면 높이 대비)
 MAX_MISSING_FRAMES = 14  # 연속으로 미탐지 시 초기화할 프레임 수
-BOTTOM_POINT_DISTANCE = 15 # 밑면 꼭짓점 이동 거리 임계값 (픽셀)
+BOTTOM_POINT_DISTANCE = 50 # 밑면 꼭짓점 이동 거리 임계값 (픽셀)
 IMG_HEIGHT = 640 # 이미지 높이
 # 계단 물리적 특성
 STAIR_ANGLE_DEG = 35  # 계단 최대 경사각 -> 단높이 18cm / 단너비 26cm (35도)
@@ -139,10 +140,10 @@ class FallZoneTracker:
                 
                 # 2차 알림(위험) 조건: 
                 # 1) 밑면 꼭짓점이 화면 아래쪽 임계값을 넘어가거나
-                # 2) 1차 알림 때보다 밑면 꼭짓점이 일정 거리 이상 위로 이동
+                # 2) 1차 알림 때보다 밑면 꼭짓점이 일정 거리 이상 아래로 이동
                 if (current_bottom_left[1] >= threshold_y or current_bottom_right[1] >= threshold_y or
-                    first_bottom_left[1] - current_bottom_left[1] >= BOTTOM_POINT_DISTANCE or
-                    first_bottom_right[1] - current_bottom_right[1] >= BOTTOM_POINT_DISTANCE):
+                    current_bottom_left[1] - first_bottom_left[1] >= BOTTOM_POINT_DISTANCE or
+                    current_bottom_right[1] - first_bottom_right[1] >= BOTTOM_POINT_DISTANCE):
                     self.status = RiskSeverity.DANGER
     
     
@@ -284,15 +285,46 @@ def calculate_vanishing_point_from_trapezoid(trapezoid_pts):
         return (int(x), int(y))
             
     except Exception as e:
-        print(f"소실점 계산 오류: {e}")
         return None
+
+
+def is_misdetected_trapezoid_with_roll_compensation(trapezoid_pts, angle_tracker, tilt_threshold=30):
+    """
+    작업자의 누적 roll과 현재 roll을 반영해 밑면 기울기를 보정하고, 오탐 여부 판단.
+
+    Parameters:
+        trapezoid_pts (np.ndarray): 사다리꼴 4점
+        angle_tracker (AngleHistogramTracker): 작업자의 각도 트래커
+        tilt_threshold (float): 밑면 기울기 허용 범위 (deg)
+
+    Returns:
+        bool: True → 오탐으로 간주
+    """
+    if trapezoid_pts is None or angle_tracker is None:
+        return False
+
+    current_roll = angle_tracker.get_current_angle()
+    if current_roll is None:
+        return False
+
+    baseline_roll = angle_tracker.get_most_common_angle()
+
+    bottom_left = trapezoid_pts[3]
+    bottom_right = trapezoid_pts[2]
+    dx = bottom_right[0] - bottom_left[0]
+    dy = bottom_right[1] - bottom_left[1]
+    raw_bottom_angle = np.degrees(np.arctan2(dy, dx))
+
+    compensated_tilt = raw_bottom_angle - current_roll
+
+    return abs(compensated_tilt - baseline_roll) > tilt_threshold
 
 
 # 전역 트래커 딕셔너리
 fall_zone_trackers = {}
 
 
-def detect_fall_zone_risks(tracked_stairs, frame_count):
+def detect_fall_zone_risks(tracked_stairs, frame_count, device_id=23):
     """
     계단 영역의 위험도를 감지
     
@@ -318,6 +350,11 @@ def detect_fall_zone_risks(tracked_stairs, frame_count):
         trapezoid_pts = extract_trapezoid_from_mask(mask)
         if trapezoid_pts is None:
             continue
+        
+        # 오탐 판단 (밑면 기울기 + roll 기준 보정)
+        angle_tracker = get_tracker(device_id)
+        if is_misdetected_trapezoid_with_roll_compensation(trapezoid_pts, angle_tracker):
+            continue  # 오탐으로 판단되면 이후 처리 생략
         
         # 트래커 업데이트 or 초기화
         if track_id not in fall_zone_trackers:

@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from collections import deque
 from app.config import RiskSeverity
-
+from app.core.angle_tracker import get_tracker
 
 class AccidentDetector:
     def __init__(self):
@@ -157,7 +157,10 @@ class AccidentDetector:
             maxIters=100,
             confidence=0.8
         )
-
+        
+        if H is not None:
+            self._update_tracker_with_homography(H)
+        
         # RANSAC 결과로 인라이어만 선택
         inliers_mask = mask.ravel() == 1
 
@@ -177,7 +180,13 @@ class AccidentDetector:
         # 움직임 벡터의 크기 계산
         magnitude = np.sqrt(motion_vectors[:, 0]**2 + motion_vectors[:, 1]**2)
         return np.mean(magnitude)
-    
+
+
+    def _update_tracker_with_homography(self, H, device_id=23):
+        if H is not None:
+            tracker = get_tracker(device_id)
+            tracker.set_homography(H)
+             
 
     def _normalize_and_store_magnitude(self, mean_magnitude, timestamp_ms):
         """
