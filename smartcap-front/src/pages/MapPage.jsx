@@ -310,7 +310,7 @@ const MapPage = () => {
   return (
     <div className={`map-page ${isAlertActive ? 'alert-active' : ''}`}>
       {/* 알람 SSE 구독 */}
-      <AlarmSSE />
+      {/* <AlarmSSE /> */}
       
       {isAlertActive && <div className="alert-overlay"></div>}
       
