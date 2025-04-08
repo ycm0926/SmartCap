@@ -33,7 +33,7 @@ def run_model(preprocessed_frame, frame_ms):
         )
         
         # 결과 받기
-        risk_result = risk_future.result()
+        risk_result, tracked_objects_category = risk_future.result()
         incident_result = incident_future.result()
     
     # 사고 발생 시(3) 조건에 따른 반환
@@ -54,4 +54,4 @@ def run_model(preprocessed_frame, frame_ms):
         else:
             return incident_result + RiskTypeOffset.VEHICLE
     else:
-        return risk_result
+        return risk_result, tracked_objects_category

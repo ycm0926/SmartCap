@@ -180,7 +180,7 @@ def get_highest_risk_level(material_trackers):
     return highest_risk
 
 
-def detect_material_risks(tracked_materials: List[Dict[str, Any]], frame_count: int) -> int:
+def detect_material_risks(tracked_materials: List[Dict[str, Any]], frame_count: int):
     """
     건설 자재의 접근 위험을 감지합니다.
     작은 변의 길이 변화를 추적하여 카메라 방향으로 접근하는 자재를 감지합니다.
@@ -196,6 +196,9 @@ def detect_material_risks(tracked_materials: List[Dict[str, Any]], frame_count: 
     current_track_ids = set()
     shorter_side = 0
     
+    # 추적된 자재 정보를 저장할 리스트
+    tracked_materials_with_info = []
+    
     # 현재 프레임의 모든 자재에 대해 처리
     for material in tracked_materials:
         track_id = material['track_id']
@@ -203,10 +206,13 @@ def detect_material_risks(tracked_materials: List[Dict[str, Any]], frame_count: 
         
         # 신뢰도가 낮거나 rotated_box가 없는 경우 크기 업데이트를 건너뜀
         if material['score'] < MIN_DETECTION_CONFIDENCE or 'rotated_box' not in material:
+            tracked_materials_with_info.append(material)
             continue
         
         rotated_box = material['rotated_box']
         shorter_side, longer_side = get_rotated_rect_sides(rotated_box)
+         # 원본 객체에 직접 shorter_side 정보 추가
+        material['shorter_side'] = shorter_side
         
         # 트래커 업데이트 or 초기화
         if track_id not in material_trackers:
@@ -214,7 +220,10 @@ def detect_material_risks(tracked_materials: List[Dict[str, Any]], frame_count: 
         
         tracker = material_trackers[track_id]
         risk_level = max(risk_level, tracker.update(frame_count, shorter_side))
-    
+
+        # 추적된 자재 리스트에 추가
+        tracked_materials_with_info.append(material)
+        
     # 현재 프레임에 없는 객체는 missing으로 표시
     for track_id, tracker in material_trackers.items():
         if track_id not in current_track_ids:
@@ -223,7 +232,7 @@ def detect_material_risks(tracked_materials: List[Dict[str, Any]], frame_count: 
     # 오래된 트래커 제거 (일정 시간 이상 감지되지 않은 경우)
     clean_old_trackers(frame_count)
     
-    return risk_level
+    return risk_level, tracked_materials_with_info
 
 
 def clean_old_trackers(current_frame, max_age=60):

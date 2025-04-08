@@ -37,7 +37,10 @@ def run_risk_detection_pipeline(frame, frame_count):
     
     # 추적된 객체가 없으면 SAFE 반환
     if not tracked_objects:
-        return RiskSeverity.SAFE
+        return RiskSeverity.SAFE, {}
+    
+    # 각 카테고리별 추적된 객체 정보를 저장할 딕셔너리
+    tracked_objects_category = {}
     
     # 3. 각 위험 유형별 감지 수행
     # 위험 감지 내부에서 3개의 개별 감지 로직을 위한 스레드 풀 생성
@@ -64,11 +67,14 @@ def run_risk_detection_pipeline(frame, frame_count):
             frame_count
         )
         
+        
         # 결과 받기
-        material_risks = material_risk_future.result()
-        fall_zone_risks = fall_zone_risk_future.result()
+        material_risks, tracked_materials_with_info = material_risk_future.result()
+        fall_zone_risks, tracked_fall_zone_with_info = fall_zone_risk_future.result()
         vehicle_risks = vehicle_risk_future.result()
-    
+        tracked_objects_category['material'] = tracked_materials_with_info
+        tracked_objects_category['fall_zone'] = tracked_fall_zone_with_info
+        
     # 각 위험 유형별 단계 계산 (RiskTypeOffset + RiskSeverity)
     material_stage = RiskTypeOffset.MATERIAL + material_risks if material_risks > RiskSeverity.SAFE else RiskSeverity.SAFE
     fall_zone_stage = RiskTypeOffset.FALL_ZONE + fall_zone_risks if fall_zone_risks > RiskSeverity.SAFE else RiskSeverity.SAFE
@@ -77,4 +83,4 @@ def run_risk_detection_pipeline(frame, frame_count):
     # 모든 위험 수준 중 최고값 찾기
     max_risk_severity = max(material_stage, fall_zone_stage, vehicle_stage)
     
-    return max_risk_severity
+    return max_risk_severity, tracked_objects_category

@@ -6,7 +6,7 @@ import math
 FIRST_ALERT_SCORE_THRESHOLD = 2  # 1차 알림 프레임 임계값: 하행 계단은 가파르기 때문에 인지 후, 점수가 2점 이상인 경우 알림
 BOTTOM_POINT_DISAPPEAR_THRESHOLD = 0.99  # 밑면 꼭짓점 소실 임계값 (화면 높이 대비)
 MAX_MISSING_FRAMES = 14  # 연속으로 미탐지 시 초기화할 프레임 수
-BOTTOM_POINT_DISTANCE = 15 # 밑면 꼭짓점 이동 거리 임계값 (픽셀)
+BOTTOM_POINT_DISTANCE = 50 # 밑면 꼭짓점 이동 거리 임계값 (픽셀)
 IMG_HEIGHT = 640 # 이미지 높이
 # 계단 물리적 특성
 STAIR_ANGLE_DEG = 35  # 계단 최대 경사각 -> 단높이 18cm / 단너비 26cm (35도)
@@ -40,20 +40,19 @@ class FallZoneTracker:
         self.last_bottom_points = None  # 1차 알림까지의 밑면 꼭짓점 히스토리
         
         
-    def update_direct(self, trapezoid_pts, frame_count):
+    def update_direct(self, trapezoid_pts, frame_count, vanishing_point=None):
         """
         사다리꼴 정보로부터 계단 방향 업데이트
         
         Parameters:
             trapezoid_pts: 사다리꼴의 4개 꼭지점 좌표
             frame_count: 현재 프레임 번호
+            vanishing_point: 계산된 소실점
         """
         # 미탐지 카운트 초기화 및 마지막 탐지 프레임 업데이트
         self.missing_frame_count = 0
         self.last_seen_frame = frame_count
         
-        # 소실점 계산
-        vanishing_point = calculate_vanishing_point_from_trapezoid(trapezoid_pts)
         if vanishing_point is None:  # 소실점이 존재하지 않으면 update 종료
             return
            
@@ -305,7 +304,8 @@ def detect_fall_zone_risks(tracked_stairs, frame_count):
     """
     risk_level = RiskSeverity.SAFE
     current_track_ids = set()
-
+    # 추적된 자재 정보를 저장할 리스트
+    tracked_fall_zone_with_info = []
     
     # 각 계단 객체에 대해 처리
     for tracked_stair in tracked_stairs:
@@ -319,6 +319,13 @@ def detect_fall_zone_risks(tracked_stairs, frame_count):
         if trapezoid_pts is None:
             continue
         
+        # 소실점 계산
+        vanishing_point = calculate_vanishing_point_from_trapezoid(trapezoid_pts)
+        
+        # 원본 객체에 사다리꼴 및 소실점 정보 추가
+        tracked_stair['trapezoid_pts'] = trapezoid_pts
+        tracked_stair['vanishing_point'] = vanishing_point
+        
         # 트래커 업데이트 or 초기화
         if track_id not in fall_zone_trackers:
             fall_zone_trackers[track_id] = FallZoneTracker(track_id)
@@ -326,14 +333,17 @@ def detect_fall_zone_risks(tracked_stairs, frame_count):
         tracker = fall_zone_trackers[track_id]
         
         # 사다리꼴 정보로 방향 업데이트
-        tracker.update_direct(trapezoid_pts, frame_count)
+        tracker.update_direct(trapezoid_pts, frame_count, vanishing_point)
         
         # 위험 상태 업데이트
         tracker.update_risk_status(trapezoid_pts)
         
         # 최고 위험 레벨 갱신
         risk_level = max(risk_level, tracker.status)
-    
+
+        # 계단 정보 리스트에 추가
+        tracked_fall_zone_with_info.append(tracked_stair)
+        
     # 현재 프레임에 없는 객체 처리 및 최고 위험 레벨 유지
     for track_id, tracker in fall_zone_trackers.items():
         if track_id not in current_track_ids:
@@ -345,7 +355,7 @@ def detect_fall_zone_risks(tracked_stairs, frame_count):
     # 오래된 트래커 제거
     clean_old_trackers(frame_count)
     
-    return risk_level
+    return risk_level, tracked_fall_zone_with_info
 
 
 def clean_old_trackers(current_frame_count, max_age = 70):
