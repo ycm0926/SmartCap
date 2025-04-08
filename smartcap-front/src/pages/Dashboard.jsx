@@ -2,6 +2,7 @@ import {React, useEffect, useState} from 'react';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
 import { useStatsStore } from '../store/statsStore';
+import AlarmSSE from '../components/AlarmSSE'; // 추가: AlarmSSE 컴포넌트 임포트
 
 import { MonthlyDangerRanking } from '../components/dashboard/MonthlyDangerRanking.jsx';
 import { RealtimeAlertBoard } from '../components/dashboard/RealtimeAlertBoard.jsx';
@@ -168,6 +169,9 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-[#1c232d] text-white">
+      {/* AlarmSSE 컴포넌트 추가 - 사고 알람 수신 및 맵 페이지 자동 이동 처리 */}
+      <AlarmSSE />
+      
       {/* 🔹 헤더 */}
       <header className="flex justify-between items-center px-8 py-4 bg-[#0d1117] shadow-md">
         <div className="text-sm text-gray-400">
