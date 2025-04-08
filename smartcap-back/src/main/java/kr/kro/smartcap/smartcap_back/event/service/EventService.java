@@ -41,8 +41,6 @@ public class EventService {
 
         for (String key : keys) {
             try{
-                System.out.println("[Redis 조회] key = " + key); // 👈 키 로그 찍기
-
                 Map<String, String> statMap = hashOps.entries(key);
                 List<StatEntryDto> stats = statMap.entrySet().stream()
                         .map(entry -> StatEntryDto.builder()
