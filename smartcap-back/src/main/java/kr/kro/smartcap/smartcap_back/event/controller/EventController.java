@@ -323,7 +323,7 @@ public class EventController {
                     alarmDto.setGps(gpsDto);
                 }
 
-                alarmDto.setAlarm_type("3");
+                alarmDto.setAlarm_type("Accident");
                 alarmDto.setRecognized_type(redisDto.getAccidentType());
                 alarmDto.setWeather(redisDto.getWeather());
 
