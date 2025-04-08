@@ -430,7 +430,7 @@ export const RealtimeLineChart = () => {
   }, [chartData, trendLine]);
 
   // Chart height
-  const chartHeight = "60vh";
+  const chartHeight = "44vh";
 
   // Empty state if no data
   if (!mergedData || mergedData.length === 0) {

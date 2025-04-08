@@ -195,23 +195,41 @@ const Dashboard = () => {
       </header>
 
       {/* 🔹 본문 */}
-      <main className="p-8">
+      <main className="p-4">
         {/* 대시보드 위젯 그리드 */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-10">
-          <div className="md:col-span-8">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 ">
+          <div className="md:col-span-7">
             <RealtimeLineChart />
           </div>
-          <div className="md:col-span-4">
+          <div className="md:col-span-5">
             <AccidentTypeTrendChart />
           </div>
-          <div className="md:col-span-5">
+          <div className="md:col-span-6">
             <RealtimeAlertBoard />
           </div>
-          <div className="md:col-span-7">
+          <div className="md:col-span-6">
             <MonthlyDangerRanking />
           </div>
         </div>
       </main>
+
+      {/* 스타일 추가 - 컴포넌트 높이 조절을 위한 CSS */}
+      <style jsx>{`
+        .dashboard-widgets {
+          height: calc(100vh - 90px); /* 헤더 높이를 제외한 화면 높이 */
+        }
+        
+        .dashboard-widgets > div {
+          display: flex;
+          flex-direction: column;
+        }
+        
+        .dashboard-widgets > div > div {
+          flex: 1;
+          max-height: calc(50vh - 50px); /* 각 컴포넌트의 최대 높이 제한 */
+          overflow: auto;
+        }
+      `}</style>
     </div>
   );
 };

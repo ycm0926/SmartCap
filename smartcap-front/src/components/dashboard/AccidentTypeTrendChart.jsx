@@ -259,7 +259,7 @@ export const AccidentTypeTrendChart = () => {
   }, [hourlyStats, dailyStats, monthlyStats, period, alarmFilter]);
   
   // 컴포넌트 높이
-  const chartHeight = "60vh";
+  const chartHeight = "44vh";
   
   // 막대 색상 (현재, 이전)
   const currentBarColor = "#3B82F6"; // 파란색
