@@ -41,9 +41,6 @@ const MapPage = () => {
       
       // axios 요청 시 withCredentials 옵션 추가
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/events/map`, {
-        params: {
-          limit: 50  // 최근 50개 알람만 요청
-        },
         withCredentials: true, // 중요: 쿠키 포함
         timeout: 10000  // 10초 타임아웃 설정
       });
