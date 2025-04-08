@@ -253,7 +253,7 @@ public class EventController {
             //7일치 알람 가져오기
 
             // 3. DB에서 과거 알람 데이터 가져오기 (최근 7일 데이터만)
-            List<AlarmHistory> alarms = alarmHistoryRepository.findByCreatedAtGreaterThanEqual(sevenDaysAgo);
+            List<AlarmHistory> alarms = alarmHistoryRepository.findAllFromLast7Days(sevenDaysAgo);
 
             // 4. DB 사고 데이터를 AccidentDTO로 변환
             List<AccidentDTO> alarmDTOs = alarms.stream().map(entity -> {
