@@ -1,7 +1,6 @@
 package kr.kro.smartcap.smartcap_back.alarm.entity;
 
 import jakarta.persistence.*;
-import kr.kro.smartcap.smartcap_back.accident.entity.GeometryConverter;
 import lombok.Getter;
 import lombok.Setter;
 import org.locationtech.jts.geom.Point;
@@ -22,8 +21,7 @@ public class AlarmHistory {
     @Column(name = "construction_sites_id", nullable = false)
     private Long constructionSitesId;
 
-    @Convert(converter = GeometryConverter.class)
-    @Column(name = "gps", columnDefinition = "geometry(Point,4326)")
+    @Column(name = "gps", columnDefinition="Point")
     private Point gps;
 
     @Column(name = "alarm_type", nullable = false, length = 20)
