@@ -212,7 +212,8 @@ public class EventController {
                 AccidentDTO dto = new AccidentDTO();
                 dto.setAccident_id(entity.getAccidentId());
                 dto.setConstruction_sites_id(entity.getConstructionSitesId());
-                dto.setAlarm_type(entity.getAccidentType());
+                dto.setAlarm_type("3");
+                dto.setRecognized_type(entity.getAccidentType());
                 dto.setWeather(entity.getWeather());
                 dto.setCreated_at(entity.getCreatedAt().toLocalDateTime());
 
