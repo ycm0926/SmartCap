@@ -1,7 +1,6 @@
 package kr.kro.smartcap.smartcap_back.accident.service;
 
 import kr.kro.smartcap.smartcap_back.accident.dto.AccidentHistoryDto;
-import kr.kro.smartcap.smartcap_back.accident.dto.AccidentHistoryRedisDto;
 import kr.kro.smartcap.smartcap_back.accident.entity.AccidentHistory;
 import kr.kro.smartcap.smartcap_back.accident.entity.AccidentVideo;
 import kr.kro.smartcap.smartcap_back.accident.repository.AccidentHistoryRepository;
@@ -21,30 +20,22 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class AccidentProcessingService {
 
-    // 필요 시 나중에 DB 저장을 위한 Repository (하루가 지나면 Redis -> DB 이전 로직에서 사용)
     private final AccidentHistoryRepository accidentHistoryRepository;
     private final AccidentVideoService accidentVideoService;
-    private final AccidentSseEmitterHandler accidentSseEmitterHandler;
-    // Redis 템플릿: gps, 날씨 등 문자열 데이터를 위한 템플릿과 객체 데이터를 위한 템플릿
+    // RedisTemplate for GPS data (assumed String type for simplicity)
     private final RedisTemplate<String, String> redisTemplate;
-    private final RedisTemplate<String, Object> objectRedisTemplate;
-
+    private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
     private final RedisStatService redisStatService;
+    private final AccidentSseEmitterHandler accidentSseEmitterHandler;
 
     private static final Logger logger = LoggerFactory.getLogger(AccidentProcessingService.class);
-
-    private static final String WEATHER_KEY = "current:weather";
 
     @Transactional
     public void processAccident(int deviceId, AccidentHistoryDto dto) {
@@ -71,20 +62,6 @@ public class AccidentProcessingService {
             }
         } else {
             logger.info("No GPS data found in Redis for device {}. GPS not set.", deviceId);
-            // 테스트를 위해 임시 GPS 데이터 설정 (실제 환경에서는 제거)
-            accidentHistoryRedisDto.setLat(37.5013);
-            accidentHistoryRedisDto.setLng(127.0396);
-            logger.info("Default GPS data set for testing: lat=37.5013, lng=127.0396");
-        }
-
-        // Redis에서 날씨 정보 조회 및 설정
-        String weather = redisTemplate.opsForValue().get(WEATHER_KEY);
-        if (weather != null && !weather.isEmpty()) {
-            accidentHistoryRedisDto.setWeather(weather);
-            logger.info("Weather data found in Redis: {}", weather);
-        } else {
-            accidentHistoryRedisDto.setWeather("맑음");
-            logger.info("No weather data found in Redis. Default weather set: 맑음");
         }
         System.out.println("start");
 
@@ -102,6 +79,7 @@ public class AccidentProcessingService {
         } else {
             logger.info("AccidentHistory saved without AccidentVideo.");
         }
+        System.out.println("video");
 
         // 레디스 통계 업데이트
         redisStatService.incrementStats(
@@ -113,32 +91,5 @@ public class AccidentProcessingService {
 
         // SSE 전송
         accidentSseEmitterHandler.sendAccidentToClients(savedHistory, accidentVideo);
-    }
-}
-
-    /**
-     * AccidentHistoryRedisDto의 정보를 기반으로, SSE 전송을 위한 AccidentHistory 엔티티 생성.
-     */
-    private AccidentHistory convertToAccidentHistory(AccidentHistoryRedisDto dto) {
-        AccidentHistory accidentHistory = new AccidentHistory();
-        accidentHistory.setConstructionSitesId(dto.getConstructionSitesId());
-        accidentHistory.setAccidentType(dto.getAccidentType());
-        accidentHistory.setCreatedAt(dto.getCreatedAt());
-        accidentHistory.setWeather(dto.getWeather());
-
-        // GPS 정보가 존재하면, JTS Geometry를 생성 (좌표 순서는 (lng, lat))
-        if (dto.getLat() != 0.0 && dto.getLng() != 0.0) {
-            GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
-            Point point = geometryFactory.createPoint(new Coordinate(dto.getLng(), dto.getLat()));
-            accidentHistory.setGps(point);
-            logger.debug("GPS point created: lng={}, lat={}", dto.getLng(), dto.getLat());
-        } else {
-            // GPS 정보가 없거나 0,0인 경우 테스트용 기본값 사용
-            GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
-            Point point = geometryFactory.createPoint(new Coordinate(127.0396, 37.5013)); // 역삼역 근처 좌표
-            accidentHistory.setGps(point);
-            logger.info("Default GPS point created for testing: lng=127.0396, lat=37.5013");
-        }
-        return accidentHistory;
     }
 }
