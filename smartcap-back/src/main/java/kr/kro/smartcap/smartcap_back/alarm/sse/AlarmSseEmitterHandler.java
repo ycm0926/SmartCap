@@ -68,21 +68,49 @@ public class AlarmSseEmitterHandler {
 
         try {
             String alarmJson = objectMapper.writeValueAsString(convertToResponse(alarm));
+            logger.debug("Serialized alarm notification: {}", alarmJson);
 
-            emitters.forEach((clientId, emitter) -> {
+            // 제거해야 할 클라이언트 ID 목록
+            ConcurrentHashMap<String, SseEmitter> deadEmitters = new ConcurrentHashMap<>();
+            int successCount = 0;
+
+            // emitters를 직접 순회하여 개별적으로 처리
+            for (Map.Entry<String, SseEmitter> entry : emitters.entrySet()) {
+                String clientId = entry.getKey();
+                SseEmitter emitter = entry.getValue();
+
                 try {
+                    // 테스트 메시지 먼저 전송하여 연결 상태 확인
+                    emitter.send(SseEmitter.event()
+                            .name("test")
+                            .data("Test message before alarm data"));
+
+                    // 실제 알람 메시지 전송
                     emitter.send(SseEmitter.event()
                             .name("alarm")
                             .data(alarmJson));
+
                     logger.debug("Sent alarm notification to client {}", clientId);
+                    successCount++;
                 } catch (IOException e) {
                     logger.error("Error sending alarm notification to client {}: {}", clientId, e.getMessage());
-                    emitter.complete();
-                    emitters.remove(clientId);
+                    deadEmitters.put(clientId, emitter);
+                    try {
+                        emitter.complete();
+                    } catch (Exception ex) {
+                        logger.debug("Error completing emitter for client {}: {}", clientId, ex.getMessage());
+                    }
                 }
-            });
+            }
 
-            logger.info("Alarm notification sent to {} clients", emitters.size());
+            // 실패한 이미터 제거 (루프 종료 후 안전하게 제거)
+            for (String clientId : deadEmitters.keySet()) {
+                emitters.remove(clientId);
+                logger.info("Removed dead emitter for client: {}", clientId);
+            }
+
+            logger.info("Alarm notification sent to {}/{} clients, removed {} dead connections",
+                    successCount, emitters.size() + deadEmitters.size(), deadEmitters.size());
         } catch (Exception e) {
             logger.error("Error preparing alarm notification: {}", e.getMessage(), e);
         }
