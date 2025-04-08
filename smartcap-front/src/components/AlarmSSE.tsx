@@ -429,7 +429,7 @@ export default function AlarmSSE() {
           accidentBuffer.forEach(data => {
             try {
               // 알람 타입 설정 (사고는 항상 Accident 타입)
-              data.alarm_type = 'Accident';
+              data.alarm_type = '3';
               
               // 알람 ID 또는 사고 ID로 중복 체크
               let duplicateKey = data.alarm_id;
