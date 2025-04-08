@@ -7,7 +7,7 @@ export const MonthlyDangerRanking = () => {
   const monthlyStats = useStatsStore((state) => state.monthlyStats);
   
   // 높이를 vh 단위로 설정 (viewport height의 45%)
-  const boardHeight = "50vh";
+  const boardHeight = "39vh";
 
   useEffect(() => {
     console.log('통계 데이터 변경 감지됨! 새로 계산 중...');

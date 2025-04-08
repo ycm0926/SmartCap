@@ -5,7 +5,7 @@ export const RealtimeAlertBoard = () => {
   const alarms = useAlarmStore((state) => state.alarms);
 
   // 높이를 vh 단위로 설정 (viewport height의 45%)
-  const boardHeight = "50vh";
+  const boardHeight = "39vh";
 
   // 최신순 정렬 후 상위 5개만 표시
   const latestAlerts = [...alarms]
