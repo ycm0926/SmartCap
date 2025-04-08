@@ -1,39 +1,53 @@
 // AccidentSSE.jsx
 import { useEffect } from "react";
-import { useAlarmStore } from "../store/alarmStore"; // 혹은 사고 전용 스토어 사용
+import { useAlarmStore } from "../store/alarmStore";
+import { useNavigate, useLocation } from "react-router-dom"; // 추가 필요
 
 export default function AccidentSSE() {
-  // 사고 데이터를 추가하는 함수를 사용합니다.
   const addAlarm = useAlarmStore((state) => state.addAlarm);
+  const navigate = useNavigate(); // 추가
+  const location = useLocation(); // 추가
 
   useEffect(() => {
     console.log("🔄 Accident SSE 연결 시도...");
-    const accidentEs = new EventSource(`${BASE_URL}/api/sse/accident/subscribe`);
+    const BASE_URL = import.meta.env.VITE_API_BASE_URL; // BASE_URL 정의 필요
+    const es = new EventSource(`${BASE_URL}/api/sse/accident/subscribe`); // es 변수명 수정 필요
 
     es.onopen = () => {
       console.log("✅ Accident SSE 연결 성공!");
     };
 
-    // 백엔드에서 전송하는 'accident' 이벤트 수신
     // 사고 이벤트 처리 부분
     es.addEventListener("accident", (event) => {
         console.log("🚨 사고 이벤트 수신:", event.data);
         try {
-        const data = JSON.parse(event.data);
-        console.log("📦 파싱된 사고 데이터:", data);
-        // 고유 식별자 생성: accident_id와 현재 시각을 결합하거나, crypto.randomUUID() 사용
-        if (!data.alarm_id) {
-            // 예: accident_id와 타임스탬프를 결합하여 고유 ID 생성
-            data.alarm_id = `accident-${data.accident_id}-${Date.now()}`;
-            // 또는 modern 브라우저라면
-            // data.alarm_id = crypto.randomUUID();
-        }
-        addAlarm(data);
+            const data = JSON.parse(event.data);
+            console.log("📦 파싱된 사고 데이터:", data);
+            
+            // 고유 식별자 생성
+            if (!data.alarm_id) {
+                data.alarm_id = `accident-${data.accident_id}-${Date.now()}`;
+            }
+            
+            // 알람 타입을 명시적으로 '3' 또는 'Accident'로 설정
+            data.alarm_type = 'Accident'; // 또는 '3'으로 설정
+            
+            addAlarm(data);
+            
+            // 사고 알람인 경우 지도 페이지로 라우팅
+            if (location.pathname !== '/map') {
+                navigate('/map', {
+                    state: {
+                        alert: true,
+                        alarmId: data.alarm_id,
+                        fromAccident: true
+                    }
+                });
+            }
         } catch (err) {
-        console.error("❌ 사고 데이터 파싱 실패:", err);
+            console.error("❌ 사고 데이터 파싱 실패:", err);
         }
     });
-  
 
     es.onerror = (err) => {
       console.error("❌ Accident SSE 연결 에러:", err);
@@ -43,7 +57,7 @@ export default function AccidentSSE() {
       console.log("❌ Accident SSE 연결 종료");
       es.close();
     };
-  }, [addAlarm]);
+  }, [addAlarm, navigate, location.pathname]); // 의존성 배열 업데이트
 
   return null;
 }
