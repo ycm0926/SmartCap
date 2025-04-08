@@ -33,6 +33,15 @@ export const useAlarmStore = create<AlarmState>((set) => ({
         console.warn("유효하지 않은 알람 데이터:", newAlarm);
         return state;
       }
+      // 기본값 적용
+      const processedAlarm = {
+        ...newAlarm,
+        construction_sites_id: newAlarm.construction_sites_id ?? 1,
+        construction_status: newAlarm.construction_status || '진행중',
+        site_name: newAlarm.site_name || '역삼역 공사장',
+        created_at: newAlarm.created_at || new Date().toISOString()
+      };
+    
       
       // 이미 존재하는지 확인 (동일 alarm_id)
       const alreadyExists = state.alarms.some((a) => a.alarm_id === newAlarm.alarm_id);
@@ -67,10 +76,19 @@ export const useAlarmStore = create<AlarmState>((set) => ({
       const updatedItems: Alarm[] = [];
       
       newAlarms.forEach(alarm => {
-        if (!alarm.alarm_id || !existingIds.has(alarm.alarm_id)) {
-          newItems.push(alarm);
+        // 기본값 적용
+        const processedAlarm = {
+          ...alarm,
+          construction_sites_id: alarm.construction_sites_id ?? 1,
+          construction_status: alarm.construction_status || '진행중',
+          site_name: alarm.site_name || '역삼역 공사장',
+          created_at: alarm.created_at || new Date().toISOString()
+        };
+        
+        if (!processedAlarm.alarm_id || !existingIds.has(processedAlarm.alarm_id)) {
+          newItems.push(processedAlarm);
         } else {
-          updatedItems.push(alarm);
+          updatedItems.push(processedAlarm);
         }
       });
       
@@ -90,6 +108,14 @@ export const useAlarmStore = create<AlarmState>((set) => ({
       return { alarms: combinedAlarms };
     }),
     
-  // 알람 목록 설정 (백엔드에서 받은 데이터로 완전히 교체)
-  setAlarms: (alarms: Alarm[]) => set({ alarms }),
+  // 수정된 setAlarms 함수 (alarmStore.ts)
+  setAlarms: (alarms: Alarm[]) => set({ 
+    alarms: alarms.map(alarm => ({
+      ...alarm,
+      construction_sites_id: alarm.construction_sites_id ?? 1,
+      construction_status: alarm.construction_status || '진행중',
+      site_name: alarm.site_name || '역삼역 공사장',
+      created_at: alarm.created_at || new Date().toISOString()
+    }))
+  }),
 }));
