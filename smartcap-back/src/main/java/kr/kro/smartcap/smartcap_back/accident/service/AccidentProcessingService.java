@@ -72,6 +72,9 @@ public class AccidentProcessingService {
         
         System.out.println("gps");
         // Redis에 이미지가 있으면 영상 생성 및 DB 기록
+
+        System.out.println(savedHistory.getAccidentId()+"사고 아이디");
+
         AccidentVideo accidentVideo = accidentVideoService.createAccidentVideo(deviceId, savedHistory.getAccidentId());
         if (accidentVideo != null) {
             logger.info("AccidentVideo saved in DB: accidentVideoId={}, videoUrl={}",
