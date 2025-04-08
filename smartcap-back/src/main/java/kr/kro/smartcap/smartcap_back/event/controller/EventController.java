@@ -204,15 +204,27 @@ public class EventController {
                 }
             }
 
+
             // 3. DB에서 과거 사고 데이터 가져오기 (최근 7일 데이터만)
             List<AccidentHistory> accidentEntities = accidentHistoryRepository.findAll();
+
+            // 3-1. 사고 ID를 키로 비디오 정보를 맵으로 미리 로드 (성능 최적화)
+            List<AccidentVideo> videos = accidentVideoRepository.findAll();
+            Map<Long, AccidentVideo> videoMap = videos.stream()
+                    .collect(Collectors.toMap(
+                            AccidentVideo::getAccidentId,
+                            video -> video,
+                            (v1, v2) -> v1  // 중복 키가 있을 경우 첫 번째 값 유지
+                    ));
 
             // 4. DB 사고 데이터를 AccidentDTO로 변환
             List<AccidentDTO> accidentDTOs = accidentEntities.stream().map(entity -> {
                 AccidentDTO dto = new AccidentDTO();
                 dto.setAccident_id(entity.getAccidentId());
+                dto.setAlarm_id(entity.getAccidentId()); // 알람 ID로도 사용
                 dto.setConstruction_sites_id(entity.getConstructionSitesId());
-                dto.setAlarm_type(entity.getAccidentType());
+                dto.setAlarm_type("3");
+                dto.setRecognized_type(entity.getAccidentType());
                 dto.setWeather(entity.getWeather());
                 dto.setCreated_at(entity.getCreatedAt().toLocalDateTime());
 
@@ -224,13 +236,24 @@ public class EventController {
                     dto.setGps(gps);
                 }
 
+                // 비디오 정보 설정 (미리 로드된 맵 사용)
+                AccidentVideo video = videoMap.get(entity.getAccidentId());
+                if (video != null) {
+                    dto.setAccident_video_id(video.getAccidentVideoId());
+                    dto.setVideo_url(video.getVideoUrl());
+                } else {
+                    // 기본 비디오 정보 설정 (데이터가 없는 경우)
+                    dto.setAccident_video_id(entity.getAccidentId() + 500); // 임의의 비디오 ID
+                    dto.setVideo_url("/sample-fall-video.mp4"); // 기본 샘플 비디오 URL
+                }
+
                 return dto;
             }).collect(Collectors.toList());
 
             //7일치 알람 가져오기
 
             // 3. DB에서 과거 알람 데이터 가져오기 (최근 7일 데이터만)
-            List<AlarmHistory> alarms = alarmHistoryRepository.findAllFromLast7Days(sevenDaysAgo);
+            List<AlarmHistory> alarms = alarmHistoryRepository.findByCreatedAtGreaterThanEqual(sevenDaysAgo);
 
             // 4. DB 사고 데이터를 AccidentDTO로 변환
             List<AccidentDTO> alarmDTOs = alarms.stream().map(entity -> {
@@ -251,7 +274,8 @@ public class EventController {
                     System.out.print(entity.getGps().getX());
                     System.out.print(entity.getGps().getY());
                 }
-                System.out.print(entity.getGps());
+
+
 
                 return dto;
             }).collect(Collectors.toList());
@@ -261,7 +285,7 @@ public class EventController {
             // 5. 최종 응답 생성 전 필터링 및 제한
             List<AlarmDTO> filteredAlarms = recentAlarms.stream()
                     .filter(alarm -> alarm.getCreated_at() != null && alarm.getCreated_at().isAfter(sevenDaysAgo))
-                    .limit(50) // 최대 50개로 제한
+                    .limit(10000) // 최대 10000개로 제한
                     .collect(Collectors.toList());
 
             return MapDataResponse.builder()
@@ -434,7 +458,7 @@ public class EventController {
         dto.setAccident_id(accident.getAccidentId());
         dto.setConstruction_sites_id(accident.getConstructionSitesId());
         // device_id 필드는 DB에 없으므로 설정하지 않음
-        dto.setAlarm_type("Accident"); // 사고는 항상 "Accident" 타입
+        dto.setAlarm_type("3"); // 사고는 항상 3 타입
         dto.setRecognized_type(accident.getAccidentType()); // 사고 유형을 인식 유형으로 사용
         dto.setWeather(accident.getWeather() != null ? accident.getWeather() : "맑음");
         dto.setCreated_at(accident.getCreatedAt().toLocalDateTime());
