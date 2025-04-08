@@ -1,5 +1,5 @@
 // src/components/map/GoogleMapView.jsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { GoogleMap, Marker, OverlayView } from '@react-google-maps/api';
 import { getAlarmColor } from '../../utils/mapUtils';
 import CustomInfoWindow from './CustomInfoWindow';
@@ -16,6 +16,7 @@ const GoogleMapView = ({
   const isLoaded = window.google && window.google.maps;
   const [map, setMap] = useState(null);
   const [selectedMarker, setSelectedMarker] = useState(null);
+  const [currentZoom, setCurrentZoom] = useState(20);
   
   // 초기 중심 좌표 (역삼역)
   const initialCenter = {
@@ -32,6 +33,20 @@ const GoogleMapView = ({
     width: '100%',
     height: '100%'
   };
+  
+  // 줌 레벨에 따른 원형 마커 크기 계산 함수
+  const calculateCircleSize = useCallback((zoom) => {
+    // 기준 줌 레벨과 크기 설정
+    const baseZoom = 12; // 더 낮은 줌 레벨을 기준으로 설정
+    const baseSize = 20; // 기본 크기를 작게 설정
+    
+    // 줌 레벨에 따른 크기 조정 (줌 레벨이 커질수록 원도 커짐)
+    // 2^(zoom - baseZoom)은 지도가 확대될 때 마커도 같이 확대되는 비율
+    const scaleFactor = Math.pow(2, (zoom - baseZoom) * 0.3); // 0.3은 확대 비율을 조절하는 계수
+    
+    // 기본 사이즈에 스케일 팩터를 곱하여 조정된 크기 반환
+    return baseSize * scaleFactor;
+  }, []);
   
   // 맵 스타일 (다크 모드) - 최적화
   const mapOptions = {
@@ -170,6 +185,7 @@ const GoogleMapView = ({
       mapRef.current = mapInstance;
     }
     setMap(mapInstance);
+    setCurrentZoom(mapInstance.getZoom() || 20);
     
     // 맵 이동 이벤트 리스너 추가
     mapInstance.addListener('dragend', () => {
@@ -184,6 +200,7 @@ const GoogleMapView = ({
       const newZoom = mapInstance.getZoom();
       if (newZoom) {
         setMapZoom(newZoom);
+        setCurrentZoom(newZoom);
       }
     });
   };
@@ -249,8 +266,6 @@ const GoogleMapView = ({
     }
   };
 
-  // GoogleMapView.jsx 내의 마커 렌더링 로직 업데이트
-
   // 알람 타입 숫자 변환 헬퍼 함수 추가
   const normalizeAlarmType = (typeValue) => {
     if (typeValue === undefined || typeValue === null) return "Warning";
@@ -268,6 +283,9 @@ const GoogleMapView = ({
     if (!alarmHistory || !Array.isArray(alarmHistory) || !window.google) {
       return [];
     }
+    
+    // 현재 줌 레벨에 따른 원형 마커 크기 계산
+    const circleSize = calculateCircleSize(currentZoom);
     
     return alarmHistory
       .filter(alarm => isValidAlarm(alarm))
@@ -287,16 +305,16 @@ const GoogleMapView = ({
               position={position}
               mapPaneName={OverlayView.OVERLAY_LAYER}
               getPixelPositionOffset={(width, height) => ({
-                x: -40, // 80px 너비의 절반
-                y: -40  // 80px 높이의 절반
+                x: -circleSize / 2, // 원 너비의 절반
+                y: -circleSize / 2  // 원 높이의 절반
               })}
             >
               <div 
                 className="alarm-circle" 
                 onClick={() => handleMarkerClick(alarm)}  
                 style={{
-                  width: '80px',
-                  height: '80px',
+                  width: `${circleSize}px`,
+                  height: `${circleSize}px`,
                   borderRadius: '50%',
                   backgroundColor: normalizedAlarmType === 'Warning' 
                     ? 'rgba(255, 193, 7, 0.4)' 
@@ -357,7 +375,7 @@ const GoogleMapView = ({
           );
         }
       });
-  }, [alarmHistory, newAlarmId, window.google]);
+  }, [alarmHistory, newAlarmId, window.google, currentZoom, calculateCircleSize]);
   
   // 선택된 마커에 대한 인포윈도우 처리 - selectedMarker 유효성 확인
   const renderInfoWindow = () => {
