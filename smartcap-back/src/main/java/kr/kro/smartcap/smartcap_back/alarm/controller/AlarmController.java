@@ -3,6 +3,7 @@ package kr.kro.smartcap.smartcap_back.alarm.controller;
 import kr.kro.smartcap.smartcap_back.alarm.dto.AlarmHistoryDto;
 import kr.kro.smartcap.smartcap_back.alarm.entity.AlarmHistory;
 import kr.kro.smartcap.smartcap_back.alarm.service.AlarmProcessingService;
+import kr.kro.smartcap.smartcap_back.common.util.AlarmCategoryMapper;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +23,12 @@ public class AlarmController {
             @RequestBody AlarmHistoryDto dto
     ) {
         try {
+            String alarmType = AlarmCategoryMapper.map(dto.getAlarmType()).getCode();
+            if(alarmType.equals("3")||alarmType.equals("-1")){
+                return ResponseEntity
+                        .badRequest()
+                        .body("Invalid data received");
+            }
             alarmProcessingService.processAlarm(deviceId, dto);
 
             return ResponseEntity.ok("Accident data saved successfully");
