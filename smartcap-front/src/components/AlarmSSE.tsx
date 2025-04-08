@@ -90,6 +90,7 @@ export default function AlarmSSE() {
   };
   
   // 알람 데이터를 Alarm 타입으로 변환하고 필수 필드를 확인/보완하는 함수
+  // AlarmSSE.tsx의 normalizeAlarmData 함수 수정
   const normalizeAlarmData = (data: any): Alarm => {
     // 알람 타입 정규화 (백엔드에서 1, 2, 3 형식으로 전달되는 경우 처리)
     let normalizedType = data.alarm_type;
@@ -99,9 +100,9 @@ export default function AlarmSSE() {
       const typeStr = String(normalizedType).trim();
       
       if (typeStr === '1' || typeStr === '1차') {
-      normalizedType = 'Warning';
+        normalizedType = 'Warning';
       } else if (typeStr === '2' || typeStr === '2차') {
-      normalizedType = 'Danger';
+        normalizedType = 'Danger';
       } else if (typeStr === '3' || typeStr === '3차' || data.accident_id) {
         normalizedType = 'Accident';
       }
@@ -122,9 +123,19 @@ export default function AlarmSSE() {
       }
     }
     
-    // construction_sites_id가 없으면 기본값 설정
-    if (data.construction_sites_id === undefined) {
+    // construction_sites_id가 없거나 null인 경우 기본값 1 설정
+    if (data.construction_sites_id === undefined || data.construction_sites_id === null) {
       data.construction_sites_id = data.site_id || 1; // 기본값 1 또는 site_id가 있으면 그 값 사용
+    }
+    
+    // construction_status가 없거나 null인 경우 기본값 설정
+    if (!data.construction_status) {
+      data.construction_status = '진행중';
+    }
+    
+    // site_name이 없거나 null인 경우 기본값 설정
+    if (!data.site_name) {
+      data.site_name = '역삼역 공사장';
     }
     
     // created_at이 문자열이면 Date 객체로 변환하고 ISO 문자열로 저장
@@ -181,7 +192,7 @@ export default function AlarmSSE() {
     
     return normalizedData;
   };
-  
+    
   // === 일반 알람 SSE 관련 함수 ===
   
   // 알람 SSE 연결 복구 함수
