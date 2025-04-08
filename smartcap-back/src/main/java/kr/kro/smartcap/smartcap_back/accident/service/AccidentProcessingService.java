@@ -48,55 +48,24 @@ public class AccidentProcessingService {
 
     @Transactional
     public void processAccident(int deviceId, AccidentHistoryDto dto) {
-        // Redis에 저장할 DTO 생성 및 기본 값 설정
-        AccidentHistoryRedisDto accidentHistoryRedisDto = new AccidentHistoryRedisDto();
-        accidentHistoryRedisDto.setConstructionSitesId(dto.getConstructionSitesId());
-        // 기존 로직에서 alarm 카테고리 매핑 (필요에 따라 dto.getAccidentType() 그대로 사용할 수도 있음)
-        CategoryInfo categoryInfo = AlarmCategoryMapper.map(dto.getAccidentType());
-        String accidentTypeStr = categoryInfo.getCategory();
+        AccidentHistory accidentHistory = new AccidentHistory();
+        accidentHistory.setConstructionSitesId(dto.getConstructionSitesId());
 
-        // 알람 유형이 비어있다면 사고 유형 코드에 따라 기본값 설정
-        if (accidentTypeStr == null || accidentTypeStr.isEmpty()) {
-            switch (dto.getAccidentType()) {
-                case 1:
-                    accidentTypeStr = "낙상사고";
-                    break;
-                case 2:
-                    accidentTypeStr = "충돌사고";
-                    break;
-                case 3:
-                    accidentTypeStr = "협착사고";
-                    break;
-                case 4:
-                    accidentTypeStr = "화재사고";
-                    break;
-                case 5:
-                    accidentTypeStr = "감전사고";
-                    break;
-                default:
-                    accidentTypeStr = "안전사고";
-                    break;
-            }
-            logger.info("Empty accident type from mapper. Setting default type: {} for code: {}",
-                    accidentTypeStr, dto.getAccidentType());
-        }
+        CategoryInfo info = AlarmCategoryMapper.map(dto.getAccidentType());
+        accidentHistory.setAccidentType(info.getCategory());
+        accidentHistory.setCreatedAt(Timestamp.from(Instant.now()));
 
-        accidentHistoryRedisDto.setAccidentType(accidentTypeStr);
-
-        LocalDateTime ldt = LocalDateTime.now();
-        Timestamp now = Timestamp.valueOf(ldt);
-        accidentHistoryRedisDto.setCreatedAt(now);
-
-        // Redis에서 GPS 정보 조회 ("gps {deviceId}" 키 사용)
-        String gpsRedisKey = "gps " + deviceId;
-        Map<Object, Object> gpsMap = redisTemplate.opsForHash().entries(gpsRedisKey);
+        // Redis에서 "gps {deviceId}" 형식의 키로 gps 정보 조회
+        String redisKey = "gps " + deviceId;
+        Map<Object, Object> gpsMap = redisTemplate.opsForHash().entries(redisKey);
         if (gpsMap != null && !gpsMap.isEmpty()) {
             try {
                 double lat = Double.parseDouble(gpsMap.get("lat").toString());
                 double lng = Double.parseDouble(gpsMap.get("lng").toString());
-                accidentHistoryRedisDto.setLat(lat);
-                accidentHistoryRedisDto.setLng(lng);
-                logger.info("GPS data found and set for device {}: lat={}, lng={}", deviceId, lat, lng);
+                // JTS에서는 좌표 순서가 (x, y) 즉, (lng, lat)입니다.
+                Point point = geometryFactory.createPoint(new Coordinate(lng, lat));
+                accidentHistory.setGps(point);
+
             } catch (Exception e) {
                 logger.warn("Failed to parse GPS data from Redis for device {}: {}", deviceId, e.getMessage());
             }
@@ -117,63 +86,35 @@ public class AccidentProcessingService {
             accidentHistoryRedisDto.setWeather("맑음");
             logger.info("No weather data found in Redis. Default weather set: 맑음");
         }
+        System.out.println("start");
 
-        // 하루치 사고 데이터를 Redis 리스트에 저장 (자동 만료: 2일)
-        Long siteId = accidentHistoryRedisDto.getConstructionSitesId();
-        String redisKey = String.format("accident:%d:%s", siteId, LocalDate.now());
+        AccidentHistory savedHistory = accidentHistoryRepository.save(accidentHistory);
+        logger.info("AccidentHistory saved: accidentId={}, constructionSitesId={}",
+                savedHistory.getAccidentId(), savedHistory.getConstructionSitesId());
 
-        // 저장 전 데이터 최종 점검
-        logger.info("Saving accident data to Redis: key={}, data={}", redisKey,
-                String.format("siteId=%d, type=%s, lat=%.4f, lng=%.4f, weather=%s",
-                        accidentHistoryRedisDto.getConstructionSitesId(),
-                        accidentHistoryRedisDto.getAccidentType(),
-                        accidentHistoryRedisDto.getLat(),
-                        accidentHistoryRedisDto.getLng(),
-                        accidentHistoryRedisDto.getWeather()));
-
-        objectRedisTemplate.opsForList().rightPush(redisKey, accidentHistoryRedisDto);
-        objectRedisTemplate.expire(redisKey, Duration.ofDays(2));
-
-        // GPS 정보 테스트 목적으로 저장 (실제 환경에서는 제거할 것)
-        if (gpsMap == null || gpsMap.isEmpty()) {
-            String gpsTestKey = "gps " + deviceId;
-            redisTemplate.opsForHash().put(gpsTestKey, "lat", "37.5013");
-            redisTemplate.opsForHash().put(gpsTestKey, "lng", "127.0396");
-            redisTemplate.expire(gpsTestKey, Duration.ofHours(1));
-            logger.info("Test GPS data set in Redis: key={}, lat=37.5013, lng=127.0396", gpsTestKey);
-        }
-
-        // 이미지(영상) 관련 로직: 사고 발생 시 영상 생성 및 DB 기록
-        AccidentVideo accidentVideo = accidentVideoService.createAccidentVideo(deviceId, accidentHistoryRedisDto.getConstructionSitesId());
+        
+        System.out.println("gps");
+        // Redis에 이미지가 있으면 영상 생성 및 DB 기록
+        AccidentVideo accidentVideo = accidentVideoService.createAccidentVideo(deviceId, savedHistory.getAccidentId());
         if (accidentVideo != null) {
             logger.info("AccidentVideo saved in DB: accidentVideoId={}, videoUrl={}",
                     accidentVideo.getAccidentVideoId(), accidentVideo.getVideoUrl());
         } else {
-            logger.info("Accident event processed without AccidentVideo.");
+            logger.info("AccidentHistory saved without AccidentVideo.");
         }
 
         // 레디스 통계 업데이트
         redisStatService.incrementStats(
-                accidentHistoryRedisDto.getCreatedAt().toLocalDateTime(),
-                accidentHistoryRedisDto.getAccidentType(),
+                accidentHistory.getCreatedAt().toLocalDateTime(),
+                accidentHistory.getAccidentType(),
                 "3"
         );
+        System.out.println("stat");
 
-        // SSE를 통한 실시간 알림 전송을 위해 Redis DTO를 AccidentHistory 엔티티로 변환
-        AccidentHistory accidentHistoryForSse = convertToAccidentHistory(accidentHistoryRedisDto);
-
-        // DB에 사고기록 저장하지 않았으므로 임시 ID 생성 (필요시)
-        // Redis에서는 ID가 없으므로, 임시 ID를 생성해 SSE 전송용으로 사용
-        if (accidentHistoryForSse.getAccidentId() == null) {
-            accidentHistoryForSse.setAccidentId(Math.abs(UUID.randomUUID().getLeastSignificantBits()));
-            logger.info("Temporary accident ID generated for SSE: {}", accidentHistoryForSse.getAccidentId());
-        }
-
-
-        // SSE 알림 전송 (프론트엔드로 실시간 사고/알림 전달)
-        accidentSseEmitterHandler.sendAccidentToClients(accidentHistoryForSse, accidentVideo);
-        logger.info("SSE notification sent for accident");
+        // SSE 전송
+        accidentSseEmitterHandler.sendAccidentToClients(savedHistory, accidentVideo);
     }
+}
 
     /**
      * AccidentHistoryRedisDto의 정보를 기반으로, SSE 전송을 위한 AccidentHistory 엔티티 생성.
