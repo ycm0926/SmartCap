@@ -5,6 +5,7 @@ import kr.kro.smartcap.smartcap_back.accident.entity.AccidentHistory;
 import kr.kro.smartcap.smartcap_back.accident.entity.AccidentVideo;
 import kr.kro.smartcap.smartcap_back.accident.repository.AccidentHistoryRepository;
 import kr.kro.smartcap.smartcap_back.accident.sse.AccidentSseEmitterHandler;
+import kr.kro.smartcap.smartcap_back.alarm.dto.AlarmHistoryRedisDto;
 import kr.kro.smartcap.smartcap_back.common.dto.CategoryInfo;
 import kr.kro.smartcap.smartcap_back.common.util.AlarmCategoryMapper;
 import kr.kro.smartcap.smartcap_back.stats.service.RedisStatService;
@@ -37,6 +38,8 @@ public class AccidentProcessingService {
 
     private static final Logger logger = LoggerFactory.getLogger(AccidentProcessingService.class);
 
+    private static final String WEATHER_KEY = "current:weather";
+
     @Transactional
     public void processAccident(int deviceId, AccidentHistoryDto dto) {
         AccidentHistory accidentHistory = new AccidentHistory();
@@ -63,17 +66,15 @@ public class AccidentProcessingService {
         } else {
             logger.info("No GPS data found in Redis for device {}. GPS not set.", deviceId);
         }
-        System.out.println("start");
+
+        setWeatherFromRedis(accidentHistory);
 
         AccidentHistory savedHistory = accidentHistoryRepository.save(accidentHistory);
         logger.info("AccidentHistory saved: accidentId={}, constructionSitesId={}",
                 savedHistory.getAccidentId(), savedHistory.getConstructionSitesId());
 
         
-        System.out.println("gps");
         // Redis에 이미지가 있으면 영상 생성 및 DB 기록
-
-        System.out.println(savedHistory.getAccidentId()+"사고 아이디");
 
         AccidentVideo accidentVideo = accidentVideoService.createAccidentVideo(deviceId, savedHistory.getAccidentId());
         if (accidentVideo != null) {
@@ -82,7 +83,6 @@ public class AccidentProcessingService {
         } else {
             logger.info("AccidentHistory saved without AccidentVideo.");
         }
-        System.out.println("video");
 
         // 레디스 통계 업데이트
         redisStatService.incrementStats(
@@ -93,5 +93,16 @@ public class AccidentProcessingService {
 
         // SSE 전송
         accidentSseEmitterHandler.sendAccidentToClients(savedHistory, accidentVideo);
+    }
+
+    private void setWeatherFromRedis(AccidentHistory accidentHistory) {
+        String weather = redisTemplate.opsForValue().get(WEATHER_KEY);
+
+        if (weather != null && !weather.isEmpty()) {
+            accidentHistory.setWeather(weather);
+        } else {
+            accidentHistory.setWeather("맑음");
+            logger.info("No weather data found in Redis. Default weather set: 맑음");
+        }
     }
 }
