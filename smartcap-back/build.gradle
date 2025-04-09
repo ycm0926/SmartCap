@@ -43,16 +43,16 @@ dependencies {
 	implementation 'org.postgresql:postgresql'
 
 	// postgreSQL GPS값 처리 - JTS (Java Topology Suite) for geometry 처리
-	implementation 'org.locationtech.jts:jts-core:1.18.2'
+	implementation 'org.locationtech.jts:jts-core:1.19.0'
 	// postgreSQL GPS값 처리 - Hibernate Spatial (Hibernate와 PostGIS 연동)
 	implementation 'org.postgresql:postgresql'
 	// postgreSQL GPS값 처리 - 타입
 	implementation 'com.vladmihalcea:hibernate-types-60:2.21.1'
 
 	// postgreSQL GPS값 처리 - Hibernate Spatial
-	implementation 'org.hibernate.orm:hibernate-spatial:6.2.7.Final'
+	implementation 'org.hibernate.orm:hibernate-spatial:6.6.11.Final'
 	// postgreSQL GPS값 처리
-	implementation 'net.postgis:postgis-jdbc:2.5.0'
+//	implementation 'net.postgis:postgis-jdbc:2021.1.0'
 	// jcodec 영상 변환
 	implementation 'org.jcodec:jcodec-javase:0.2.3'
 }

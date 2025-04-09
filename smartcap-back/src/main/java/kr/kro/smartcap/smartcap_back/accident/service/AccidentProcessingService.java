@@ -90,7 +90,6 @@ public class AccidentProcessingService {
                 accidentHistory.getAccidentType(),
                 "3"
         );
-        System.out.println("stat");
 
         // SSE 전송
         accidentSseEmitterHandler.sendAccidentToClients(savedHistory, accidentVideo);

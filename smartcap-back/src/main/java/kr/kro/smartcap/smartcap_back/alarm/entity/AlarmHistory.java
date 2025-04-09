@@ -1,8 +1,10 @@
 package kr.kro.smartcap.smartcap_back.alarm.entity;
 
 import jakarta.persistence.*;
+import kr.kro.smartcap.smartcap_back.accident.entity.PointType;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.Type;
 import org.locationtech.jts.geom.Point;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -21,7 +23,8 @@ public class AlarmHistory {
     @Column(name = "construction_sites_id", nullable = false)
     private Long constructionSitesId;
 
-    @Column(name = "gps", columnDefinition="Point")
+    @Column(name = "gps", columnDefinition = "geometry(Point,4326)")
+    @Type(PointType.class)
     private Point gps;
 
     @Column(name = "alarm_type", nullable = false, length = 20)
