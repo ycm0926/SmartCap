@@ -51,6 +51,7 @@ pipeline {
                     echo "AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY"
                     echo "FRONT_URL: $FRONT_URL"
                     echo "REMEMBER_ME_KEY: $REMEMBER_ME_KEY"
+                    echo "FASTAPI_URL: $FASTAPI_URL"
                 '''
             }
         }
@@ -98,6 +99,7 @@ pipeline {
                             -e WEATHER_API_KEY=$WEATHER_API_KEY \
                             -e FRONT_URL=$FRONT_URL \
                             -e REMEMBER_ME_KEY=$REMEMBER_ME_KEY \
+                            -e FASTAPI_URL=$FASTAPI_URL \
                             smartcap-back
                     '''
                 }
