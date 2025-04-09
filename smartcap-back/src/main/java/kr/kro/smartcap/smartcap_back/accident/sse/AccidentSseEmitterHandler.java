@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -17,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AccidentSseEmitterHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(AccidentSseEmitterHandler.class);
-    private static final Long SSE_TIMEOUT = 60 * 60 * 1000L; // 1시간
+    private static final Long SSE_TIMEOUT = 15 * 60 * 1000L; // 15분
     private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper;
 
@@ -171,5 +172,22 @@ public class AccidentSseEmitterHandler {
         response.put("construction_status", "진행중");
 
         return response;
+    }
+
+    // SSE 연결된 클라이언트 목록 반환
+    public Map<String, SseEmitter> getEmitters() {
+        return Collections.unmodifiableMap(emitters);
+    }
+
+    // 클라이언트 ID로 SSE 연결 종료
+    public void removeEmitter(String clientId) {
+        SseEmitter emitter = emitters.remove(clientId);
+        if (emitter != null) {
+            try {
+                emitter.complete();
+            } catch (Exception e) {
+                logger.warn("Error completing emitter for client: {}", clientId);
+            }
+        }
     }
 }
