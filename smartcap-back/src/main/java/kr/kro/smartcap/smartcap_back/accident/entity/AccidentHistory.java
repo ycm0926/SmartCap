@@ -6,6 +6,8 @@ import lombok.Setter;
 import org.locationtech.jts.geom.Point;
 import java.sql.Timestamp;
 import java.time.Instant;
+import org.hibernate.annotations.Type;
+
 
 @Getter
 @Setter
@@ -21,7 +23,8 @@ public class AccidentHistory {
     @Column(name = "construction_sites_id", nullable = false)
     private Long constructionSitesId;
 
-    @Column(name = "gps", columnDefinition="Point")
+    @Column(name = "gps", columnDefinition = "geometry(Point,4326)")
+    @Type(PointType.class)
     private Point gps;
 
     @Column(name = "weather")
