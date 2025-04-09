@@ -76,7 +76,9 @@ public class AccidentProcessingService {
         
         // Redis에 이미지가 있으면 영상 생성 및 DB 기록
 
-        AccidentVideo accidentVideo = accidentVideoService.createAccidentVideo(deviceId, savedHistory.getAccidentId());
+//        AccidentVideo accidentVideo = accidentVideoService.createAccidentVideo(deviceId, savedHistory.getAccidentId());
+        //TODO: 시연 코드(삭제 해야하는 부분)
+        AccidentVideo accidentVideo = accidentVideoService.createAccidentVideoV2(deviceId, savedHistory.getAccidentId(), dto.getRedisKey());
         if (accidentVideo != null) {
             logger.info("AccidentVideo saved in DB: accidentVideoId={}, videoUrl={}",
                     accidentVideo.getAccidentVideoId(), accidentVideo.getVideoUrl());

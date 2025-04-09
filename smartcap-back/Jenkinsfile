@@ -22,6 +22,7 @@ pipeline {
 
         FRONT_URL = "${env.FRONT_URL}"
         REMEMBER_ME_KEY = "${env.REMEMBER_ME_KEY}"
+        FASTAPI_URL = "${env.FASTAPI_URL}"
     }
 
     stages {

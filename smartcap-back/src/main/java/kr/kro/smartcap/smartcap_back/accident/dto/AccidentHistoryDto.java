@@ -8,4 +8,5 @@ import lombok.Setter;
 public class AccidentHistoryDto {
     private Long constructionSitesId;
     private int accidentType;  // 사고 유형 (1-9)
+    private String redisKey;  // Redis 키
 }
