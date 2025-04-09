@@ -32,6 +32,9 @@ public class SecurityConfig {
     @Value("${rememberme.key}")
     private String rememberMeKey;
 
+    @Value("${fastapi.url}")
+    private String fastApiUrl;
+
     public SecurityConfig(CustomUserDetailsService customUserDetailsService) {
         this.customUserDetailsService = customUserDetailsService;
     }
@@ -42,7 +45,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/register", "/api/alarm/**", "/api/accident/**").permitAll()
                         // 다른 API는 인증 필요
                         .anyRequest().authenticated()
                 )
@@ -91,6 +94,7 @@ public class SecurityConfig {
         config.setAllowCredentials(true);
         config.setAllowedOrigins(Arrays.asList(
                 "http://localhost:5173",
+                fastApiUrl, //시연서버
                 frontUrl //배포서버
         ));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
