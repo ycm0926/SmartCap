@@ -18,9 +18,18 @@ const GoogleMapView = ({
   const [selectedMarker, setSelectedMarker] = useState(null);
   const [currentZoom, setCurrentZoom] = useState(20);
   
+  // 관리자 마커를 위한 상태 추가
+  const [selectedAdminMarker, setSelectedAdminMarker] = useState(null);
+  
   // 초기 중심 좌표 (역삼역)
   const initialCenter = {
     lat: 37.501263, 
+    lng: 127.039615
+  };
+  
+  // 관리자 위치 하드코딩
+  const adminLocation = {
+    lat: 37.501263,
     lng: 127.039615
   };
   
@@ -158,6 +167,36 @@ const GoogleMapView = ({
     }
   };
 
+  // 관리자 마커 아이콘 설정 (파란색)
+  const getAdminMarkerIcon = () => {
+    try {
+      // 파란색 마커 SVG
+      const svgMarker = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" width="30" height="42">
+          <path fill="#0084ff" d="M172.268 501.67C26.97 291.031 0 269.413 0 192 0 85.961 85.961 0 192 0s192 85.961 192 192c0 77.413-26.97 99.031-172.268 309.67-9.535 13.774-29.93 13.773-39.464 0zM192 272c44.183 0 80-35.817 80-80s-35.817-80-80-80-80 35.817-80 80 35.817 80 80 80z"/>
+        </svg>
+      `;
+      
+      return {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svgMarker)}`,
+        scaledSize: new window.google.maps.Size(30, 42),
+        anchor: new window.google.maps.Point(15, 42),
+        labelOrigin: new window.google.maps.Point(15, 15)
+      };
+    } catch (error) {
+      console.error('관리자 마커 아이콘 생성 오류:', error);
+      // 기본 파란색 아이콘으로 폴백
+      return {
+        path: window.google.maps.SymbolPath.CIRCLE,
+        fillColor: '#0084ff',
+        fillOpacity: 1,
+        scale: 8,
+        strokeWeight: 2,
+        strokeColor: '#ffffff'
+      };
+    }
+  };
+
   // 새 알람 생성 시 지도 이동 처리 - 안전하게 처리하고 상태 업데이트
   useEffect(() => {
     if (newAlarmId && map) {
@@ -208,8 +247,29 @@ const GoogleMapView = ({
   // 마커 클릭 핸들러
   const handleMarkerClick = (alarm) => {
     setSelectedMarker(alarm);
+    setSelectedAdminMarker(null); // 관리자 마커 선택 해제
     
     // 현재 맵 위치와 줌 상태 저장 (유지하기 위해)
+    if (map) {
+      const currentCenter = map.getCenter();
+      const currentZoom = map.getZoom();
+      
+      if (currentCenter) {
+        setMapCenter(currentCenter.toJSON());
+      }
+      
+      if (currentZoom) {
+        setMapZoom(currentZoom);
+      }
+    }
+  };
+
+  // 관리자 마커 클릭 핸들러
+  const handleAdminMarkerClick = () => {
+    setSelectedAdminMarker(adminLocation);
+    setSelectedMarker(null); // 알람 마커 선택 해제
+    
+    // 현재 맵 위치와 줌 상태 저장
     if (map) {
       const currentCenter = map.getCenter();
       const currentZoom = map.getZoom();
@@ -227,6 +287,7 @@ const GoogleMapView = ({
   // 인포윈도우 닫기 핸들러
   const handleInfoWindowClose = () => {
     setSelectedMarker(null);
+    setSelectedAdminMarker(null);
     
     // 현재 맵 위치와 줌 상태 저장 (유지하기 위해)
     if (map) {
@@ -400,6 +461,66 @@ const GoogleMapView = ({
     }
   };
 
+  // 관리자 마커의 인포윈도우 렌더링
+  const renderAdminInfoWindow = () => {
+    if (!selectedAdminMarker) return null;
+    
+    return (
+      <OverlayView
+        position={adminLocation}
+        mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+        getPixelPositionOffset={(width, height) => ({
+          x: -width / 2,
+          y: -height - 40 // 마커 위에 위치하도록 조정
+        })}
+      >
+        <div className="custom-overlay-window admin-info-window">
+          <button className="close-btn" onClick={handleInfoWindowClose}>&times;</button>
+          <h3>관리자 위치</h3>
+          <p><strong>좌표:</strong> {adminLocation.lat.toFixed(6)}, {adminLocation.lng.toFixed(6)}</p>
+
+          <style jsx>{`
+            .custom-overlay-window {
+              background-color: #242f3e;
+              color: white;
+              border-radius: 4px;
+              padding: 10px;
+              box-shadow: 0 2px 7px rgba(0, 0, 0, 0.5);
+              position: relative;
+              min-width: 220px;
+              max-width: 300px;
+            }
+            
+            .admin-info-window {
+              border-left: 3px solid #0084ff;
+            }
+            
+            .close-btn {
+              position: absolute;
+              top: 5px;
+              right: 5px;
+              background: none;
+              border: none;
+              color: white;
+              font-size: 16px;
+              cursor: pointer;
+            }
+            
+            h3 {
+              margin-top: 0;
+              margin-bottom: 8px;
+              color: #0084ff;
+            }
+            
+            p {
+              margin: 5px 0;
+            }
+          `}</style>
+        </div>
+      </OverlayView>
+    );
+  };
+
   return (
     <div className="map-container">
       {isLoaded ? (
@@ -410,10 +531,21 @@ const GoogleMapView = ({
           options={mapOptions}
           onLoad={handleMapLoad}
         >
+          {/* 관리자 위치 마커 */}
+          <Marker
+            position={adminLocation}
+            icon={getAdminMarkerIcon()}
+            onClick={handleAdminMarkerClick}
+            zIndex={1000}
+          />
+          
           {map && customMarkers}
           
           {/* 선택된 마커에 대한 커스텀 인포윈도우 */}
           {selectedMarker && renderInfoWindow()}
+          
+          {/* 관리자 마커 인포윈도우 */}
+          {selectedAdminMarker && renderAdminInfoWindow()}
         </GoogleMap>
       ) : (
         <div className="map-loading">지도 로딩 중...</div>
