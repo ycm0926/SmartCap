@@ -271,8 +271,6 @@ public class EventController {
                     gps.setType("Point");
                     gps.setCoordinates(new double[]{entity.getGps().getX(), entity.getGps().getY()});
                     dto.setGps(gps);
-                    System.out.print(entity.getGps().getX());
-                    System.out.print(entity.getGps().getY());
                 }
 
 

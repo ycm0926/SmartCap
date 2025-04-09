@@ -38,12 +38,7 @@ public class PointType implements UserType<Point> {
 
     @Override
     public Point nullSafeGet(ResultSet rs, int position, SharedSessionContractImplementor session, Object owner) throws SQLException {
-//        byte[] bytes = rs.getBytes("gps");
         String gps = rs.getString("gps");
-        System.out.println(gps);
-
-//        byte[] bytes = hexStringToByteArray(gps);
-
 
         if (gps == null) {
             return null;
@@ -51,16 +46,8 @@ public class PointType implements UserType<Point> {
         WKBReader reader = new WKBReader();
         try {
             byte[] bytes = hexToBytes(gps);
-            System.out.println(111111);
 
             Geometry geometry = reader.read(bytes);
-            System.out.println(222222);
-
-//            Geometry geometry = reader.read(bytes);
-            System.out.println(33333);
-            System.out.println(geometry.equals(null));
-
-            System.out.println(44444);
 
             return (Point) geometry;
         } catch (Exception e) {
