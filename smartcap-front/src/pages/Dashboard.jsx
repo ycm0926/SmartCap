@@ -175,8 +175,8 @@ const Dashboard = () => {
       {/* 🔹 헤더 */}
       <header className="flex justify-between items-center px-8 py-4 bg-[#0d1117] shadow-md">
         <div className="text-sm text-gray-400">
-          <p className="m-0">사피건설 특화아파트 준공</p>
-          <p className="m-0">2025.04.01 ~ 2025.08.22</p>
+          <p className="m-0">싸피건설 특화아파트 준공</p>
+          <p className="m-0">2024.04.01 ~ 2025.08.22</p>
         </div>
         
         <h1 className="text-2xl font-bold m-0 absolute left-1/2 transform -translate-x-1/2">안전 모니터링 대시보드</h1>

@@ -24,7 +24,7 @@ const ProtectedRoute = ({ children }) => {
 const AppRouter = () => {
   return (
     <Router>
-      <AlarmSSE/>
+      {/* <AlarmSSE/> */}
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route 
