@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs (루트의 로그 파일 무시)
+/*.log
+
+# Environment variables
+.env
+.env.*
+
+# Pydantic or test caches
+.mypy_cache/
+.pytest_cache/
+.cache/
+
+# Ignore specific app folders
+app/src/
+app/videos/
+app/script/
