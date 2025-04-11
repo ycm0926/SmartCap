@@ -1,0 +1,789 @@
+/* src/styles/MapPage.css */
+.map-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    background-color: #1c232d;
+    color: white;
+  }
+  
+  /* 헤더 스타일 */
+  .map-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background-color: #0d1117;
+    z-index: 10;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  }
+  
+  .map-header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+  
+  .back-button {
+    background-color: #0084ff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .back-button:hover {
+    background-color: #0077e6;
+  }
+  
+  /* 현장 선택기 */
+  .site-selector {
+    margin-left: 1rem;
+  }
+  
+  .site-select {
+    background-color: #2c3e50;
+    color: white;
+    border: 1px solid #3e4c5a;
+    border-radius: 4px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.875rem;
+    min-width: 200px;
+  }
+  
+  /* 지도 컨테이너 */
+  .map-container {
+    flex: 1;
+    position: relative;
+    z-index: 5;
+  }
+  
+  /* 사고 목록 패널 */
+  .incidents-panel {
+    position: absolute;
+    top: 5rem;
+    right: 1rem;
+    width: 320px;
+    max-height: calc(100vh - 6rem);
+    background-color: rgba(13, 17, 23, 0.95);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    padding: 1rem;
+    overflow-y: auto;
+    z-index: 100;
+  }
+  
+  .incidents-panel h2 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+    border-bottom: 1px solid #30363d;
+    padding-bottom: 0.5rem;
+  }
+  
+  .incidents-panel ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .incidents-panel li {
+    padding: 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    background-color: #161b22;
+    display: flex;
+    align-items: center;
+  }
+  
+  .incidents-panel li:hover {
+    background-color: #1d2026;
+  }
+  
+  .incidents-panel li.new-incident {
+    animation: pulse-bg 2s infinite;
+    border-left: 3px solid #ff0000;
+  }
+  
+  .incident-icon {
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .incident-info {
+    flex: 1;
+  }
+  
+  .incident-time {
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: #e5e5e5;
+    margin-bottom: 0.25rem;
+  }
+  
+  .incident-type {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #d1d5db;
+    margin-bottom: 0.25rem;
+  }
+  
+  .incident-location {
+    font-size: 0.75rem;
+    color: #9ca3af;
+  }
+  
+  /* 낙상 감지 마커 스타일 */
+  .fall-alert-marker {
+    position: relative;
+  }
+  
+  .marker-pin {
+    width: 20px;
+    height: 20px;
+    border-radius: 50% 50% 50% 0;
+    background: #ff9800;
+    position: absolute;
+    transform: rotate(-45deg);
+    left: 50%;
+    top: 50%;
+    margin: -20px 0 0 -10px;
+    animation: bounce 1s infinite alternate;
+  }
+  
+  .new-alert .marker-pin {
+    background: #ff0000;
+  }
+  
+  .marker-pin::after {
+    content: '';
+    width: 10px;
+    height: 10px;
+    margin: 5px 0 0 5px;
+    background: white;
+    position: absolute;
+    border-radius: 50%;
+  }
+  
+  /* 펄스 효과 */
+  .pulse-circle {
+    width: 40px;
+    height: 40px;
+    background-color: rgba(255, 152, 0, 0.4);
+    border-radius: 50%;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin: -20px 0 0 -20px;
+    animation: pulse 1.5s infinite;
+  }
+  
+  .new-alert .pulse-circle {
+    background-color: rgba(255, 0, 0, 0.4);
+    animation: pulse 1s infinite;
+  }
+  
+  /* 팝업 스타일 */
+  .incident-popup {
+    padding: 0.5rem;
+  }
+  
+  .incident-popup button {
+    background-color: #0084ff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.3rem 0.5rem;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+  
+  /* 알림 효과 */
+  .alert-active {
+    position: relative;
+  }
+  
+  .alert-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 0, 0, 0.8);
+    pointer-events: none;
+    z-index: 1000;
+    animation: flash 1s infinite;
+  }
+  
+  /* 모달 스타일 */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease-out;
+  }
+  
+  .modal-content {
+    background-color: #1c232d;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 700px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 1.5rem;
+    position: relative;
+    color: white;
+    border: 1px solid #30363d;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    animation: slideUp 0.3s ease-out;
+  }
+  
+  .modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #9ca3af;
+    cursor: pointer;
+  }
+  
+  .modal-close:hover {
+    color: white;
+  }
+  
+  .modal-content h2 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+    color: #e5e5e5;
+    border-bottom: 2px solid #ff3a3a;
+    padding-bottom: 0.5rem;
+  }
+  
+  .incident-video {
+    margin-bottom: 1.5rem;
+  }
+  
+  .incident-video h3 {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    color: #d1d5db;
+  }
+  
+  .incident-video video {
+    width: 100%;
+    max-height: 300px;
+    background-color: #000;
+    border-radius: 4px;
+    border: 1px solid #30363d;
+  }
+  
+  .incident-details h3 {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    color: #d1d5db;
+  }
+  
+  .incident-details table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .incident-details table td {
+    padding: 0.5rem;
+    border-bottom: 1px solid #30363d;
+  }
+  
+  .incident-details table td:first-child {
+    font-weight: 500;
+    width: 30%;
+    color: #9ca3af;
+  }
+  
+  .action-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+  }
+  
+  .btn-primary {
+    background-color: #e53935;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.6rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  
+  .btn-secondary {
+    background-color: #2c3e50;
+    color: white;
+    border: 1px solid #3e4c5a;
+    border-radius: 4px;
+    padding: 0.6rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  
+  /* 애니메이션 */
+  @keyframes bounce {
+    from {
+      transform: rotate(-45deg) translateY(0);
+    }
+    to {
+      transform: rotate(-45deg) translateY(-8px);
+    }
+  }
+  
+  @keyframes pulse {
+    0% {
+      transform: scale(0.5);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(2);
+      opacity: 0;
+    }
+  }
+  
+  @keyframes flash {
+    0%, 100% {
+      opacity: 0.2;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  
+  @keyframes pulse-bg {
+    0%, 100% {
+      background-color: #161b22;
+    }
+    50% {
+      background-color: rgba(255, 0, 0, 0.15);
+    }
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slideUp {
+    from {
+      transform: translateY(30px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  
+  /* 반응형 디자인 */
+  @media (max-width: 768px) {
+    .map-header {
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 0.75rem;
+    }
+    
+    .map-header h1 {
+      margin-bottom: 0.5rem;
+      font-size: 1.25rem;
+    }
+    
+    .site-selector {
+      margin-left: 0;
+      margin-bottom: 0.5rem;
+      width: 100%;
+    }
+    
+    .site-select {
+      width: 100%;
+    }
+    
+    .back-button {
+      width: 100%;
+    }
+    
+    .incidents-panel {
+      width: 100%;
+      top: auto;
+      right: auto;
+      bottom: 0;
+      max-height: 40vh;
+      border-radius: 12px 12px 0 0;
+    }
+    
+    .action-buttons {
+      flex-direction: column;
+    }
+    
+    .action-buttons button {
+      width: 100%;
+    }
+  }
+
+  /* src/styles/MapPage.css에 추가하세요 */
+
+/* 구글맵 펄스 효과 스타일 */
+.map-pulse-effect {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  transform: translateY(-20px); /* 위치 조정 */
+}
+
+.pulse-circle {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: rgba(255, 0, 0, 0.3);
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  animation: google-map-pulse 1.5s infinite;
+}
+
+@keyframes google-map-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+  }
+}
+
+/* 마커 라벨 스타일 */
+.gm-style-iw {
+  background-color: #1c232d !important;
+  color: white !important;
+  padding: 8px 12px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid #30363d !important;
+}
+
+.gm-style-iw button.gm-ui-hover-effect {
+  color: white !important;
+}
+
+/* 로딩 화면 스타일 */
+.map-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  font-size: 1.2rem;
+  color: white;
+  background-color: #1c232d;
+}
+
+/* 커스텀 InfoWindow 스타일 */
+.custom-info-window {
+  color: white;
+  background-color: #1c232d;
+  padding: 10px;
+  border-radius: 8px;
+  min-width: 200px;
+}
+
+.custom-info-window h3 {
+  margin-top: 0;
+  font-size: 1rem;
+  border-bottom: 1px solid #30363d;
+  padding-bottom: 5px;
+  margin-bottom: 8px;
+}
+
+.custom-info-window p {
+  margin: 5px 0;
+  font-size: 0.9rem;
+}
+
+.custom-info-window button {
+  background-color: #0084ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  margin-top: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.custom-info-window button:hover {
+  background-color: #0077e6;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+}
+
+.alarm-circle {
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+}
+
+.alarm-circle:hover {
+  transform: scale(1.1);
+}
+
+.alarm-circle {
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3); /* 원에 약간의 그림자 효과 추가 */
+}
+
+.alarm-circle:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5); /* 호버 시 그림자 강화 */
+}
+
+.alarm-circle:active {
+  transform: scale(0.95);
+  transition: transform 0.1s;
+}
+
+/* src/styles/MapPage.css */
+
+.map-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #0d1117;
+  color: #fff;
+  position: relative;
+}
+
+.map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background-color: #0d1117;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 100;
+}
+
+.map-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.map-container {
+  position: absolute;
+  top: 64px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+.map-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  background-color: #0d1117;
+  color: #ccc;
+  font-size: 1rem;
+}
+
+.incidents-panel {
+  position: absolute;
+  top: 64px;
+  right: 0;
+  bottom: 0;
+  width: 350px;
+  background-color: rgba(13, 17, 23, 0.85);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 2;
+  padding: 1rem;
+  backdrop-filter: blur(8px);
+  overflow-y: auto;
+}
+
+/* 새로운 알람 효과 */
+.new-incident {
+  animation: pulse-background 2s ease-in-out;
+}
+
+.new-indicator {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background-color: #ff0000;
+  color: white;
+  font-size: 0.6rem;
+  padding: 1px 4px;
+  border-radius: 4px;
+  animation: pulse 1.5s infinite;
+}
+
+/* 지도 펄스 효과 */
+.map-pulse-effect {
+  position: relative;
+}
+
+.pulse-circle {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  position: absolute;
+  margin-left: -40px;
+  margin-top: -40px;
+  animation: pulse-map 2s infinite;
+}
+
+/* 알림 효과 */
+.alert-active {
+  animation: alert-flash 1s infinite;
+}
+
+.alert-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 0, 0, 0.9);
+  z-index: 1000;
+  pointer-events: none;
+  animation: alert-fade 1s infinite;
+}
+
+/* 로딩 오버레이 */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(13, 17, 23, 0.8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #0084ff;
+  animation: spinner 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+/* 애니메이션 정의 */
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+@keyframes pulse-background {
+  0% { background-color: rgba(255, 0, 0, 0.3); }
+  100% { background-color: transparent; }
+}
+
+@keyframes pulse-map {
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+@keyframes alert-flash {
+  0%, 100% { border-color: rgba(255, 0, 0, 0.3); }
+  50% { border-color: rgba(255, 0, 0, 0.6); }
+}
+
+@keyframes alert-fade {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes spinner {
+  to { transform: rotate(360deg); }
+}
+
+/* 날씨 아이콘 */
+.weather-badge {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  vertical-align: middle;
+}
+
+.weather-clear {
+  background-image: url('/weather-icons/sun.svg');
+}
+
+.weather-cloudy {
+  background-image: url('/weather-icons/cloudy.svg');
+}
+
+.weather-rain {
+  background-image: url('/weather-icons/rain.svg');
+}
+
+.weather-snow {
+  background-image: url('/weather-icons/snow.svg');
+}
+
+.weather-fog {
+  background-image: url('/weather-icons/fog.svg');
+}
+
+.weather-default {
+  background-image: url('/weather-icons/sun.svg');
+}
