@@ -1,0 +1,109 @@
+pipeline {
+    agent any
+
+    environment {
+        SPRING_DATASOURCE_URL = "${env.SPRING_DATASOURCE_URL}"
+        SPRING_DATASOURCE_USERNAME = "${env.SPRING_DATASOURCE_USERNAME}"
+        SPRING_DATASOURCE_PASSWORD = "${env.SPRING_DATASOURCE_PASSWORD}"
+        SPRING_DATASOURCE_DRIVER_CLASS_NAME = "${env.SPRING_DATASOURCE_DRIVER_CLASS_NAME}"
+        S3_BUCKET_NAME = "${env.S3_BUCKET_NAME}"
+        S3_FOLDER = "${env.S3_FOLDER}"
+        DOCKER_CREDENTIALS_ID = "dockerHub"
+
+        REDIS_HOST = "${env.REDIS_HOST}"
+        REDIS_PORT = "${env.REDIS_PORT}"
+        REDIS_DB   = "${env.REDIS_DB}"
+        REDIS_PASSWORD = "${env.REDIS_PASSWORD}"
+
+        AWS_ACCESS_KEY_ID = "${env.AWS_ACCESS_KEY_ID}"
+        AWS_SECRET_ACCESS_KEY = "${env.AWS_SECRET_ACCESS_KEY}"
+
+        WEATHER_API_KEY = "${env.WEATHER_API_KEY}"
+
+        FRONT_URL = "${env.FRONT_URL}"
+        REMEMBER_ME_KEY = "${env.REMEMBER_ME_KEY}"
+        FASTAPI_URL = "${env.FASTAPI_URL}"
+    }
+
+    stages {
+        stage('Docker Login') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                    sh '''
+                        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('Debug') {
+            steps {
+                sh '''
+                    echo "SPRING_DATASOURCE_URL: $SPRING_DATASOURCE_URL"
+                    echo "SPRING_DATASOURCE_USERNAME: $SPRING_DATASOURCE_USERNAME"
+                    echo "S3_BUCKET_NAME: $S3_BUCKET_NAME"
+                    echo "S3_FOLDER: $S3_FOLDER"
+                    echo "REDIS_HOST: $REDIS_HOST"
+                    echo "REDIS_PORT: $REDIS_PORT"
+                    echo "REDIS_DB: $REDIS_DB"
+                    echo "REDIS_PASSWORD: $REDIS_PASSWORD"
+                    echo "AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID"
+                    echo "AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY"
+                    echo "FRONT_URL: $FRONT_URL"
+                    echo "REMEMBER_ME_KEY: $REMEMBER_ME_KEY"
+                    echo "FASTAPI_URL: $FASTAPI_URL"
+                '''
+            }
+        }
+
+        stage('Build') {
+            steps {
+                dir('smartcap-back') {
+                    sh '''
+                        chmod +x gradlew
+                        ./gradlew build -x test
+                    '''
+                }
+            }
+        }
+
+        stage('Docker Build & Deploy') {
+            steps {
+                dir('smartcap-back') {
+                    sh '''
+                        docker stop smartcap-back || true
+                        docker rm smartcap-back || true
+                        docker rmi smartcap-back || true
+                        docker build -t smartcap-back .
+
+                        docker network inspect smartcap-network >/dev/null 2>&1 || \
+                        docker network create smartcap-network
+
+                        docker run -d \
+                            --name smartcap-back \
+                            --network smartcap-network \
+                            -p 8080:8080 \
+                            -v smartcap-back-volume:/app/data \
+                            -e SPRING_DATASOURCE_URL=$SPRING_DATASOURCE_URL \
+                            -e SPRING_DATASOURCE_USERNAME=$SPRING_DATASOURCE_USERNAME \
+                            -e SPRING_DATASOURCE_PASSWORD=$SPRING_DATASOURCE_PASSWORD \
+                            -e SPRING_DATASOURCE_DRIVER_CLASS_NAME=$SPRING_DATASOURCE_DRIVER_CLASS_NAME \
+                            -e S3_BUCKET_NAME=$S3_BUCKET_NAME \
+                            -e S3_FOLDER=$S3_FOLDER \
+                            -e REDIS_HOST=$REDIS_HOST \
+                            -e REDIS_PORT=$REDIS_PORT \
+                            -e REDIS_DB=$REDIS_DB \
+                            -e REDIS_PASSWORD=$REDIS_PASSWORD \
+                            -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+                            -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+                            -e WEATHER_API_KEY=$WEATHER_API_KEY \
+                            -e FRONT_URL=$FRONT_URL \
+                            -e REMEMBER_ME_KEY=$REMEMBER_ME_KEY \
+                            -e FASTAPI_URL=$FASTAPI_URL \
+                            smartcap-back
+                    '''
+                }
+            }
+        }
+    }
+}

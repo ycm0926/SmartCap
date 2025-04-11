@@ -1,0 +1,62 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.4.4'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'kr.kro.smartcap'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(17)
+	}
+}
+
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	compileOnly 'org.projectlombok:lombok'
+	runtimeOnly 'org.postgresql:postgresql'
+	annotationProcessor 'org.projectlombok:lombok'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.security:spring-security-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	// 스웨거 의존성
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.0.4'
+	// redis
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	// AWS-S3
+	implementation 'com.amazonaws:aws-java-sdk-s3:1.12.528'
+	// postgreSQL
+	implementation 'org.postgresql:postgresql'
+
+	// postgreSQL GPS값 처리 - JTS (Java Topology Suite) for geometry 처리
+	implementation 'org.locationtech.jts:jts-core:1.19.0'
+	// postgreSQL GPS값 처리 - Hibernate Spatial (Hibernate와 PostGIS 연동)
+	implementation 'org.postgresql:postgresql'
+	// postgreSQL GPS값 처리 - 타입
+	implementation 'com.vladmihalcea:hibernate-types-60:2.21.1'
+
+	// postgreSQL GPS값 처리 - Hibernate Spatial
+	implementation 'org.hibernate.orm:hibernate-spatial:6.6.11.Final'
+	// postgreSQL GPS값 처리
+//	implementation 'net.postgis:postgis-jdbc:2021.1.0'
+	// jcodec 영상 변환
+	implementation 'org.jcodec:jcodec-javase:0.2.3'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
