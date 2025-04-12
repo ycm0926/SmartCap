@@ -78,7 +78,7 @@ public class AccidentProcessingService {
 
 //        AccidentVideo accidentVideo = accidentVideoService.createAccidentVideo(deviceId, savedHistory.getAccidentId());
         //TODO: 시연 코드(삭제 해야하는 부분)
-        AccidentVideo accidentVideo = accidentVideoService.createAccidentVideoV2(deviceId, savedHistory.getAccidentId(), dto.getRedisKey());
+        AccidentVideo accidentVideo = accidentVideoService.createAccidentVideoV2(deviceId, savedHistory.getAccidentId(), dto.getVideoUrl());
         if (accidentVideo != null) {
             logger.info("AccidentVideo saved in DB: accidentVideoId={}, videoUrl={}",
                     accidentVideo.getAccidentVideoId(), accidentVideo.getVideoUrl());
