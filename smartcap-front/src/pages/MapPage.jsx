@@ -232,26 +232,44 @@ const MapPage = () => {
     }
   }, [location]);
 
-  // 알림 효과 이벤트 처리
+  // // 알림 효과 이벤트 처리
+  // useEffect(() => {
+  //   if (!isAlertActive) return;
+
+  //   const stopAlert = () => {
+  //     setIsAlertActive(false);
+  //     if (alertAudioRef.current) {
+  //       alertAudioRef.current.pause();
+  //       alertAudioRef.current.currentTime = 0;
+  //     }
+  //   };
+
+  //   window.addEventListener('click', stopAlert);
+  //   window.addEventListener('keydown', stopAlert);
+  //   window.addEventListener('mousemove', stopAlert);
+
+  //   return () => {
+  //     window.removeEventListener('click', stopAlert);
+  //     window.removeEventListener('keydown', stopAlert);
+  //     window.removeEventListener('mousemove', stopAlert);
+  //   };
+  // }, [isAlertActive]);
+
+  // 알림 효과 자동 중지 (5초 후)
   useEffect(() => {
     if (!isAlertActive) return;
-
-    const stopAlert = () => {
+    
+    // 5초 후에 자동으로 알림 효과 중지
+    const autoStopTimer = setTimeout(() => {
       setIsAlertActive(false);
       if (alertAudioRef.current) {
         alertAudioRef.current.pause();
         alertAudioRef.current.currentTime = 0;
       }
-    };
-
-    window.addEventListener('click', stopAlert);
-    window.addEventListener('keydown', stopAlert);
-    window.addEventListener('mousemove', stopAlert);
-
+    }, 5000); // 5초(5000ms) 후 실행
+    
     return () => {
-      window.removeEventListener('click', stopAlert);
-      window.removeEventListener('keydown', stopAlert);
-      window.removeEventListener('mousemove', stopAlert);
+      clearTimeout(autoStopTimer); // 컴포넌트 언마운트 또는 isAlertActive 변경 시 타이머 제거
     };
   }, [isAlertActive]);
   
