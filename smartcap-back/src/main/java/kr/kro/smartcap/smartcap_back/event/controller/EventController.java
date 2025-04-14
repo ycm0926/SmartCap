@@ -17,8 +17,11 @@ import kr.kro.smartcap.smartcap_back.event.service.EventService;
 import org.locationtech.jts.geom.Point;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -236,6 +239,7 @@ public class EventController {
                     dto.setGps(gps);
                 }
 
+
                 // 비디오 정보 설정 (미리 로드된 맵 사용)
                 AccidentVideo video = videoMap.get(entity.getAccidentId());
                 if (video != null) {
@@ -244,7 +248,7 @@ public class EventController {
                 } else {
                     // 기본 비디오 정보 설정 (데이터가 없는 경우)
                     dto.setAccident_video_id(entity.getAccidentId() + 500); // 임의의 비디오 ID
-                    dto.setVideo_url("/sample-fall-video.mp4"); // 기본 샘플 비디오 URL
+                    dto.setVideo_url("https://smartcap102.s3.ap-northeast-2.amazonaws.com/accident_video/device_23_1744609514210.mp4"); // 기본 샘플 비디오 URL
                 }
 
                 return dto;
@@ -300,6 +304,40 @@ public class EventController {
                     .recentAlarms(new ArrayList<>())
                     .fallingAccidents(new ArrayList<>())
                     .build();
+        }
+    }
+
+    @GetMapping("/video/{id}")
+    public ResponseEntity<?> getVideoData(@PathVariable Long id) {
+        try {
+            // 사고 ID로 AccidentVideo 조회
+            Optional<AccidentVideo> videoOpt = accidentVideoRepository.findById(id);
+
+            // AccidentVideo가 없으면 사고 ID로 직접 검색
+            if (videoOpt.isEmpty()) {
+                videoOpt = accidentVideoRepository.findByAccidentId(id);
+            }
+
+            if (videoOpt.isPresent()) {
+                AccidentVideo video = videoOpt.get();
+                Map<String, Object> response = new HashMap<>();
+                response.put("accident_video_id", video.getAccidentVideoId());
+                response.put("accident_id", video.getAccidentId());
+                response.put("video_url", video.getVideoUrl());
+
+                return ResponseEntity.ok(response);
+            } else {
+                // 비디오가 없는 경우 기본 응답
+                Map<String, Object> response = new HashMap<>();
+                response.put("accident_video_id", id + 500); // 임의 ID
+                response.put("accident_id", id);
+                response.put("video_url", "https://smartcap102.s3.ap-northeast-2.amazonaws.com/accident_video/device_23_1744609514210.mp4");
+
+                return ResponseEntity.ok(response);
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error retrieving video data: " + e.getMessage());
         }
     }
 
@@ -409,89 +447,6 @@ public class EventController {
         return null;
     }
 
-    /**
-     * AlarmHistory 엔티티를 AlarmDTO로 변환
-     */
-    private AlarmDTO convertToAlarmDTO(AlarmHistory alarm) {
-        AlarmDTO dto = new AlarmDTO();
-        dto.setAlarm_id(alarm.getAlarmId());
-        dto.setConstruction_sites_id(alarm.getConstructionSitesId());
-        // device_id 필드는 DB에 없으므로 설정하지 않음
-        dto.setAlarm_type(alarm.getAlarmType());
-        dto.setRecognized_type(alarm.getRecognizedType());
-        dto.setWeather(alarm.getWeather());
-        dto.setCreated_at(alarm.getCreatedAt().toLocalDateTime());
-
-        // 하드코딩된 추가 정보 (SSE와 일치하도록)
-        dto.setSite_name("역삼역 공사장"); // 현장 이름 하드코딩
-        dto.setConstruction_status("진행중"); // 현장 상태 하드코딩
-
-        // GPS 정보 설정
-        if (alarm.getGps() != null) {
-            GpsDTO gps = new GpsDTO();
-            gps.setType("Point");
-            gps.setCoordinates(new double[]{alarm.getGps().getX(), alarm.getGps().getY()});
-            dto.setGps(gps);
-        } else {
-            // 기본 GPS 값 설정 (데이터가 없는 경우)
-            GpsDTO gps = new GpsDTO();
-            gps.setType("Point");
-            gps.setCoordinates(new double[]{126.9780, 37.5665}); // 서울시청 좌표
-            dto.setGps(gps);
-        }
-
-        return dto;
-    }
-
-    /**
-     * AccidentHistory 엔티티를 AccidentDTO로 변환
-     * @param accident 사고 이력 엔티티
-     * @param videoMap 사고 ID를 키로 하는 비디오 맵 (성능 향상을 위해 미리 로드)
-     */
-    private AccidentDTO convertToAccidentDTO(AccidentHistory accident, Map<Long, AccidentVideo> videoMap) {
-        AccidentDTO dto = new AccidentDTO();
-
-        // AlarmDTO의 기본 필드 설정
-        dto.setAlarm_id(accident.getAccidentId()); // 사고 ID를 알람 ID로 사용
-        dto.setAccident_id(accident.getAccidentId());
-        dto.setConstruction_sites_id(accident.getConstructionSitesId());
-        // device_id 필드는 DB에 없으므로 설정하지 않음
-        dto.setAlarm_type("3"); // 사고는 항상 3 타입
-        dto.setRecognized_type(accident.getAccidentType()); // 사고 유형을 인식 유형으로 사용
-        dto.setWeather(accident.getWeather() != null ? accident.getWeather() : "맑음");
-        dto.setCreated_at(accident.getCreatedAt().toLocalDateTime());
-
-        // 하드코딩된 추가 정보 (SSE와 일치하도록)
-        dto.setSite_name("역삼역 공사장"); // 현장 이름 하드코딩
-        dto.setConstruction_status("진행중"); // 현장 상태 하드코딩
-
-        // GPS 정보 설정
-        if (accident.getGps() != null) {
-            GpsDTO gps = new GpsDTO();
-            gps.setType("Point");
-            gps.setCoordinates(new double[]{accident.getGps().getX(), accident.getGps().getY()});
-            dto.setGps(gps);
-        } else {
-            // 기본 GPS 값 설정 (데이터가 없는 경우)
-            GpsDTO gps = new GpsDTO();
-            gps.setType("Point");
-            gps.setCoordinates(new double[]{126.9780, 37.5665}); // 서울시청 좌표
-            dto.setGps(gps);
-        }
-
-        // 비디오 정보 설정 (미리 로드된 맵 사용)
-        AccidentVideo video = videoMap.get(accident.getAccidentId());
-        if (video != null) {
-            dto.setAccident_video_id(video.getAccidentVideoId());
-            dto.setVideo_url(video.getVideoUrl());
-        } else {
-            // 기본 비디오 정보 설정 (데이터가 없는 경우)
-            dto.setAccident_video_id(accident.getAccidentId() + 500); // 임의의 비디오 ID
-            dto.setVideo_url("/sample-fall-video.mp4"); // 기본 샘플 비디오 URL
-        }
-
-        return dto;
-    }
 
     // 유틸리티 메소드: Map 리스트를 AlarmDTO 리스트로 변환
     private List<AlarmDTO> convertToAlarmDTOs(List<Map<String, Object>> alarmsList) {
@@ -529,34 +484,6 @@ public class EventController {
             }
 
             return dto;
-        }).collect(Collectors.toList());
-    }
-
-    // 사고 데이터 변환 메소드
-    private List<AccidentDTO> convertToAccidentDTOs(List<Map<String, Object>> accidentsList) {
-        // 기본 알람 데이터 변환
-        List<AlarmDTO> alarmDTOs = convertToAlarmDTOs(accidentsList);
-
-        // AccidentDTO로 변환
-        return alarmDTOs.stream().map(alarm -> {
-            AccidentDTO accident = new AccidentDTO();
-            // 알람 데이터 복사
-            accident.setAlarm_id(alarm.getAlarm_id());
-            accident.setConstruction_sites_id(alarm.getConstruction_sites_id());
-            accident.setGps(alarm.getGps());
-            accident.setAlarm_type(alarm.getAlarm_type());
-            accident.setRecognized_type(alarm.getRecognized_type());
-            accident.setCreated_at(alarm.getCreated_at());
-            accident.setWeather(alarm.getWeather());
-            accident.setSite_name(alarm.getSite_name());
-            accident.setConstruction_status(alarm.getConstruction_status());
-
-            // 사고 관련 필드 설정
-            accident.setAccident_id(alarm.getAlarm_id());  // 임시로 동일하게 설정
-            accident.setAccident_video_id(alarm.getAlarm_id() + 100);  // 임시 ID
-            accident.setVideo_url("/sample-fall-video.mp4");  // 샘플 비디오 URL
-
-            return accident;
         }).collect(Collectors.toList());
     }
 }
