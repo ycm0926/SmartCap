@@ -288,15 +288,15 @@ export default function AlarmSSE() {
               addAlarm(normalizedAlarm);
               
               // Accident 타입 알람 처리
-              if (normalizedAlarm.alarm_type === 'Accident' && location.pathname !== '/map') {
-                navigate('/map', {
-                  state: {
-                    alert: true,
-                    alarmId: normalizedAlarm.alarm_id,
-                    fromAccident: true
-                  }
-                });
-              }
+              // if (normalizedAlarm.alarm_type === 'Accident' && location.pathname !== '/map') {
+              //   navigate('/map', {
+              //     state: {
+              //       alert: true,
+              //       alarmId: normalizedAlarm.alarm_id,
+              //       fromAccident: true
+              //     }
+                // });
+              // }
             } catch (err) {
               console.error("❌ 알람 처리 실패:", err);
             }
@@ -468,16 +468,16 @@ export default function AlarmSSE() {
               // 알람 추가
               addAlarm(normalizedData);
               
-              // 사고 알람인 경우 지도 페이지로 라우팅
-              if (location.pathname !== '/map') {
-                navigate('/map', {
-                  state: {
-                    alert: true,
-                    alarmId: normalizedData.alarm_id,
-                    fromAccident: true
-                  }
-                });
-              }
+              // // 사고 알람인 경우 지도 페이지로 라우팅
+              // if (location.pathname !== '/map') {
+              //   navigate('/map', {
+              //     state: {
+              //       alert: true,
+              //       alarmId: normalizedData.alarm_id,
+              //       fromAccident: true
+              //     }
+              //   });
+              // }
             } catch (err) {
               console.error("❌ 사고 데이터 처리 실패:", err);
             }
