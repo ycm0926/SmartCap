@@ -35,15 +35,15 @@ export default function AccidentSSE() {
             addAlarm(data);
             
             // 사고 알람인 경우 지도 페이지로 라우팅
-            if (location.pathname !== '/map') {
-                navigate('/map', {
-                    state: {
-                        alert: true,
-                        alarmId: data.alarm_id,
-                        fromAccident: true
-                    }
-                });
-            }
+            // if (location.pathname !== '/map') {
+            //     navigate('/map', {
+            //         state: {
+            //             alert: true,
+            //             alarmId: data.alarm_id,
+            //             fromAccident: true
+            //         }
+            //     });
+            // }
         } catch (err) {
             console.error("❌ 사고 데이터 파싱 실패:", err);
         }
