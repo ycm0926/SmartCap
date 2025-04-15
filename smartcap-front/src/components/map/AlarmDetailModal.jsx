@@ -1,8 +1,69 @@
 // src/components/map/AlarmDetailModal.jsx
-import React from 'react';
+import React, {useEffect, useState} from 'react';
 import { HardHat, MapPin, Calendar, Cloud, Info, Building, Sun, CloudRain, CloudSnow, CloudFog, CloudLightning, CloudHail, Wind } from 'lucide-react';
+import axios from 'axios'; 
 
-const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal, getAlarmTypeText, getRecognizedTypeText }) => {
+const AlarmDetailModal = ({ showModal, selectedAlarm, closeModal, getAlarmTypeText, getRecognizedTypeText }) => {
+  const [accidentVideo, setAccidentVideo] = useState(null);
+  const [isLoadingVideo, setIsLoadingVideo] = useState(false);
+
+  // 비디오 데이터 요청 로직을 여기로 이동
+  useEffect(() => {
+    if (!showModal || !selectedAlarm) return;
+    
+    const fetchVideoData = async () => {
+      if (selectedAlarm.accident_id || 
+          selectedAlarm.alarm_type === 'Accident' || 
+          selectedAlarm.recognized_type === 'Falling') {
+        
+        setIsLoadingVideo(true);
+        
+        try {
+          // 영상 정보를 별도 API 요청으로 가져오기
+          const videoResponse = await axios.get(
+            `${import.meta.env.VITE_API_BASE_URL}/api/events/video/${selectedAlarm.alarm_id || selectedAlarm.accident_id}`,
+            { withCredentials: true }
+          );
+          
+          if (videoResponse.data && videoResponse.data.video_url) {
+            setAccidentVideo({
+              accident_video_id: videoResponse.data.accident_video_id || (selectedAlarm.accident_id + 500),
+              accident_id: selectedAlarm.accident_id,
+              video_url: videoResponse.data.video_url
+            });
+          } else {
+            // 영상이 없는 경우 샘플 영상 사용
+            setAccidentVideo({
+              accident_video_id: (selectedAlarm.accident_id || 9000) + 500,
+              accident_id: selectedAlarm.accident_id || 9000,
+              video_url: "https://smartcap102.s3.ap-northeast-2.amazonaws.com/accident_video/device_23_1744609514210.mp4"
+            });
+          }
+          
+        } catch (error) {
+          console.error('영상 데이터를 가져오는 중 오류 발생:', error);
+          // 오류 발생 시 샘플 영상으로 대체
+          setAccidentVideo({
+            accident_video_id: (selectedAlarm.accident_id || 9000) + 500,
+            accident_id: selectedAlarm.accident_id || 9000,
+            video_url: "https://smartcap102.s3.ap-northeast-2.amazonaws.com/accident_video/device_23_1744609514210.mp4"
+          });
+        } finally {
+          setIsLoadingVideo(false);
+        }
+      } else {
+        setAccidentVideo(null);
+      }
+    };
+    
+    fetchVideoData();
+    
+    // 모달이 닫힐 때 비디오 데이터 초기화
+    return () => {
+      setAccidentVideo(null);
+    };
+  }, [showModal, selectedAlarm]);
+
   // 모달이 열리지 않거나 선택된 알람이 없으면 렌더링하지 않음
   if (!showModal || !selectedAlarm) return null;
 
@@ -128,6 +189,29 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
            selectedAlarm.accident_id;
   };
 
+  // 비디오 로딩 상태 표시
+  const renderVideo = () => {
+    if (!accidentVideo) return null;
+    
+    return (
+      <div className="incident-video">
+        <h3>사고 영상</h3>
+        {isLoadingVideo ? (
+          <div className="video-loading">영상을 불러오는 중...</div>
+        ) : (
+          <video controls autoPlay>
+            <source src={accidentVideo.video_url} type="video/mp4" />
+            브라우저가 비디오 태그를 지원하지 않습니다.
+          </video>
+        )}
+        {selectedAlarm.accident_id && (
+          <p className="accident-id">사고 ID: {selectedAlarm.accident_id}</p>
+        )}
+      </div>
+    );
+  };
+
+
   // 배지에 표시할 알람 타입 텍스트
   const getBadgeText = () => {
     try {
@@ -147,6 +231,7 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
 
   return (
     <div className="modal-overlay" onClick={handleCloseModal}>
+      
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={handleCloseModal}>&times;</button>
 
@@ -158,7 +243,8 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
         </div>
         
         {/* 비디오가 있는 경우 표시 */}
-        {accidentVideo && (
+        {renderVideo()}
+        {/* {accidentVideo && (
           <div className="incident-video">
             <h3>사고 영상</h3>
             <video controls autoPlay>
@@ -169,7 +255,7 @@ const AlarmDetailModal = ({ showModal, selectedAlarm, accidentVideo, closeModal,
               <p className="accident-id">사고 ID: {selectedAlarm.accident_id}</p>
             )}
           </div>
-        )}
+        )} */}
         
         <div className="incident-details">
           <h3>알람 정보</h3>

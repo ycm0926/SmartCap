@@ -287,28 +287,28 @@ const MapPage = () => {
   const openAlarmDetails = useCallback(async (alarm) => {
     setSelectedAlarm(alarm);
     
-    if (alarm.accident_id || 
-        alarm.alarm_type === 'Accident' || 
-        alarm.recognized_type === 'Falling') {
+    // if (alarm.accident_id || 
+    //     alarm.alarm_type === 'Accident' || 
+    //     alarm.recognized_type === 'Falling') {
       
-      if (alarm.video_url) {
-        setAccidentVideo({
-          accident_video_id: alarm.accident_video_id || (alarm.accident_id + 500),
-          accident_id: alarm.accident_id,
-          video_url: alarm.video_url
-        });
-      } else {
-        setAccidentVideo({
-          accident_video_id: (alarm.accident_id || 9000) + 500,
-          accident_id: alarm.accident_id || 9000,
-          video_url: "/sample-fall-video.mp4"
-        });
-      }
-      console.log('사고 비디오 정보 설정됨:', alarm.accident_id);
-    } else {
-      setAccidentVideo(null);
-      console.log('사고 비디오 없음 - 일반 알람', alarm.alarm_type, alarm.recognized_type);
-    }
+    //   if (alarm.video_url) {
+    //     setAccidentVideo({
+    //       accident_video_id: alarm.accident_video_id || (alarm.accident_id + 500),
+    //       accident_id: alarm.accident_id,
+    //       video_url: alarm.video_url
+    //     });
+    //   } else {
+    //     setAccidentVideo({
+    //       accident_video_id: (alarm.accident_id || 9000) + 500,
+    //       accident_id: alarm.accident_id || 9000,
+    //       video_url: "https://smartcap102.s3.ap-northeast-2.amazonaws.com/accident_video/device_23_1744609514210.mp4"
+    //     });
+    //   }
+    //   console.log('사고 비디오 정보 설정됨:', alarm.accident_id);
+    // } else {
+    //   setAccidentVideo(null);
+    //   console.log('사고 비디오 없음 - 일반 알람', alarm.alarm_type, alarm.recognized_type);
+    // }
     
     setShowModal(true);
   }, []);
@@ -361,7 +361,7 @@ const MapPage = () => {
       <AlarmDetailModal 
         showModal={showModal}
         selectedAlarm={selectedAlarm}
-        accidentVideo={accidentVideo}
+        // accidentVideo={accidentVideo}
         closeModal={closeModal}
         getAlarmTypeText={getAlarmTypeText}
         getRecognizedTypeText={getRecognizedTypeText}
